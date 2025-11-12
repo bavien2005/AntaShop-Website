@@ -1,0 +1,404 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Layout } from '../components';
+import { useOrders } from '../contexts';
+import { useToast } from '../components/ToastContainer';
+import { STORAGE_KEYS } from '../constants';
+import './OrderSuccessPage.css';
+
+export default function OrderSuccessPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { refreshOrders } = useOrders();
+  const { showSuccess } = useToast();
+  const [showAnimation, setShowAnimation] = useState(false);
+  const [orderData, setOrderData] = useState(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const hasShownToast = useRef(false);
+
+  useEffect(() => {
+    // Try to get order data from location state first
+    let data = location.state?.orderData;
+
+    // If not in state, try to get the latest order from localStorage
+    if (!data) {
+      try {
+        const userOrders = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER_ORDERS) || '[]');
+        if (userOrders.length > 0) {
+          // Get the most recent order (last item in array)
+          data = userOrders[userOrders.length - 1];
+
+          // Convert user order format to orderData format if needed
+          if (!data.customer && data.orderNumber) {
+            data = {
+              orderNumber: data.orderNumber,
+              orderDate: data.date || data.createdAt,
+              items: data.products || [],
+              total: data.total || data.totalAmount,
+              subtotal: data.subtotal || data.total,
+              discount: data.discount || 0,
+              shipping: data.shipping || 0,
+              promoCode: data.promoCode || '',
+              customer: {
+                fullName: data.customer || 'Khách hàng',
+                phone: data.phone || '',
+                email: data.email || '',
+                address: data.address || '',
+                paymentMethod: data.paymentMethod || 'cod'
+              }
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error loading order from localStorage:', error);
+      }
+    }
+
+    if (data) {
+      setOrderData(data);
+      setPaymentConfirmed(location.state?.paymentConfirmed || false);
+      refreshOrders();
+      setShowAnimation(true);
+
+      // Show success toast only once
+      if (!hasShownToast.current) {
+        showSuccess('Đặt hàng thành công!');
+        hasShownToast.current = true;
+      }
+    }
+  }, [location.state, refreshOrders, showSuccess]);
+
+  if (!orderData) {
+    return (
+      <Layout>
+        <div className="order-success-page">
+          <div className="page-container">
+            <div className="empty-state">
+              <div className="empty-icon">📦</div>
+              <h2>Không tìm thấy thông tin đơn hàng</h2>
+              <p>Vui lòng kiểm tra lại hoặc liên hệ với chúng tôi để được hỗ trợ</p>
+              <button className="primary-button" onClick={() => navigate('/home')}>
+                Về trang chủ
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const orderNumber = orderData.orderNumber || `ANT${Date.now().toString().slice(-8)}`;
+  const orderDate = new Date(orderData.orderDate || Date.now()).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const estimatedDelivery = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const getPaymentMethodName = (method) => {
+    const methods = {
+      'cod': 'Thanh toán khi nhận hàng (COD)',
+      'bank': 'Chuyển khoản ngân hàng',
+      'momo': 'Ví điện tử MoMo',
+      'vnpay': 'Cổng thanh toán VNPAY',
+      'zalopay': 'Ví điện tử ZaloPay'
+    };
+    return methods[method] || method;
+  };
+
+  const getPaymentMethodIcon = (method) => {
+    const icons = {
+      'cod': '💵',
+      'bank': '🏦',
+      'momo': '📱',
+      'vnpay': '💳',
+      'zalopay': '💳'
+    };
+    return icons[method] || '💰';
+  };
+
+  return (
+    <Layout>
+      <div className="order-success-page">
+        <div className="page-container">
+          <div className={`success-hero ${showAnimation ? 'animate' : ''}`}>
+            <div className="success-icon-wrapper">
+              <svg className="success-icon" viewBox="0 0 52 52">
+                <circle className="success-circle" cx="26" cy="26" r="25" fill="none"/>
+                <path className="success-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+              </svg>
+            </div>
+            <h1 className="success-title">Đặt hàng thành công!</h1>
+            <p className="success-subtitle">Cảm ơn bạn đã tin tưởng và mua sắm tại ANTA Việt Nam</p>
+            <div className="order-number-display">
+              <span className="order-label">Mã đơn hàng:</span>
+              <span className="order-value">{orderNumber}</span>
+            </div>
+          </div>
+
+          <div className="order-timeline">
+            <div className="timeline-item active">
+              <div className="timeline-dot"></div>
+              <div className="timeline-content">
+                <h4>Đơn hàng đã đặt</h4>
+                <p>{orderDate}</p>
+              </div>
+            </div>
+            <div className="timeline-line"></div>
+            <div className="timeline-item">
+              <div className="timeline-dot"></div>
+              <div className="timeline-content">
+                <h4>Đang xử lý</h4>
+                <p>Chuẩn bị hàng</p>
+              </div>
+            </div>
+            <div className="timeline-line"></div>
+            <div className="timeline-item">
+              <div className="timeline-dot"></div>
+              <div className="timeline-content">
+                <h4>Đang giao hàng</h4>
+                <p>Dự kiến</p>
+              </div>
+            </div>
+            <div className="timeline-line"></div>
+            <div className="timeline-item">
+              <div className="timeline-dot"></div>
+              <div className="timeline-content">
+                <h4>Đã giao</h4>
+                <p>{estimatedDelivery}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="order-sections">
+            <div className="main-content">
+              <div className="info-card">
+                <div className="card-header">
+                  <h2>Thông tin giao hàng</h2>
+                </div>
+                <div className="card-body">
+                  <div className="info-row">
+                    <span className="info-key">Người nhận</span>
+                    <span className="info-val">{orderData.customer.fullName}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-key">Số điện thoại</span>
+                    <span className="info-val">{orderData.customer.phone}</span>
+                  </div>
+                  {orderData.customer.email && (
+                    <div className="info-row">
+                      <span className="info-key">Email</span>
+                      <span className="info-val">{orderData.customer.email}</span>
+                    </div>
+                  )}
+                  <div className="info-row">
+                    <span className="info-key">Địa chỉ giao hàng</span>
+                    <span className="info-val">
+                      {orderData.customer.address}
+                      {orderData.customer.ward && `, ${orderData.customer.ward}`}
+                      {orderData.customer.district && `, ${orderData.customer.district}`}
+                      {orderData.customer.city && `, ${orderData.customer.city}`}
+                    </span>
+                  </div>
+                  {orderData.customer.note && (
+                    <div className="info-row">
+                      <span className="info-key">Ghi chú</span>
+                      <span className="info-val">{orderData.customer.note}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="card-header">
+                  <h2>Sản phẩm đã đặt</h2>
+                  <span className="item-count">{orderData.items.length} sản phẩm</span>
+                </div>
+                <div className="card-body">
+                  <div className="product-list">
+                    {orderData.items.map((item, index) => (
+                      <div key={index} className="product-item">
+                        <div className="product-image-wrapper">
+                          <img 
+                            src={item.image || 'https://via.placeholder.com/100'} 
+                            alt={item.name}
+                            className="product-image"
+                            onError={(e) => e.target.src = 'https://via.placeholder.com/100?text=No+Image'}
+                          />
+                          <span className="product-badge">{item.quantity}</span>
+                        </div>
+                        <div className="product-info">
+                          <h4 className="product-name">{item.name}</h4>
+                          {(item.size || item.color) && (
+                            <p className="product-attrs">
+                              {item.size && `Size: ${item.size}`}
+                              {item.size && item.color && ' • '}
+                              {item.color && `Màu: ${item.color}`}
+                            </p>
+                          )}
+                          <div className="product-pricing">
+                            <span className="product-quantity">x{item.quantity}</span>
+                            <span className="product-price">{(item.price * item.quantity).toLocaleString()}₫</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="card-header">
+                  <h2>Phương thức thanh toán</h2>
+                </div>
+                <div className="card-body">
+                  <div className="payment-display">
+                    <span className="payment-icon-large">
+                      {getPaymentMethodIcon(orderData.customer.paymentMethod)}
+                    </span>
+                    <div className="payment-details">
+                      <h4>{getPaymentMethodName(orderData.customer.paymentMethod)}</h4>
+                      {orderData.customer.paymentMethod === 'cod' ? (
+                        <p>Vui lòng chuẩn bị số tiền {orderData.total.toLocaleString()}₫ khi nhận hàng</p>
+                      ) : paymentConfirmed ? (
+                        <p className="payment-confirmed">✓ Đã xác nhận thanh toán thành công</p>
+                      ) : (
+                        <p className="payment-pending">⏳ Đang chờ xác nhận thanh toán</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="sidebar-content">
+              <div className="summary-card sticky">
+                <div className="card-header">
+                  <h2>Tóm tắt đơn hàng</h2>
+                </div>
+                <div className="card-body">
+                  <div className="summary-list">
+                    <div className="summary-item">
+                      <span className="summary-label">Tạm tính</span>
+                      <span className="summary-value">{orderData.subtotal.toLocaleString()}₫</span>
+                    </div>
+                    {orderData.discount > 0 && (
+                      <div className="summary-item discount-item">
+                        <span className="summary-label">
+                          Giảm giá {orderData.promoCode && `(${orderData.promoCode})`}
+                        </span>
+                        <span className="summary-value discount-value">-{orderData.discount.toLocaleString()}₫</span>
+                      </div>
+                    )}
+                    <div className="summary-item">
+                      <span className="summary-label">Phí vận chuyển</span>
+                      <span className="summary-value">
+                        {orderData.shipping === 0 ? (
+                          <span className="free-badge">Miễn phí</span>
+                        ) : (
+                          `${orderData.shipping.toLocaleString()}₫`
+                        )}
+                      </span>
+                    </div>
+                    <div className="summary-divider"></div>
+                    <div className="summary-item total-item">
+                      <span className="summary-label">Tổng cộng</span>
+                      <span className="summary-value total-value">{orderData.total.toLocaleString()}₫</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="delivery-info-card">
+                <div className="delivery-icon">🚚</div>
+                <div className="delivery-text">
+                  <h4>Giao hàng dự kiến</h4>
+                  <p className="delivery-date">{estimatedDelivery}</p>
+                  <p className="delivery-note">3-5 ngày làm việc</p>
+                </div>
+              </div>
+
+              <div className="support-card">
+                <h3>Cần hỗ trợ?</h3>
+                <div className="support-item">
+                  <span className="support-icon">📞</span>
+                  <div className="support-details">
+                    <span className="support-label">Hotline</span>
+                    <a href="tel:0974945488" className="support-link">0974 945 488</a>
+                  </div>
+                </div>
+                <div className="support-item">
+                  <span className="support-icon">✉️</span>
+                  <div className="support-details">
+                    <span className="support-label">Email</span>
+                    <a href="mailto:saleonline@anta.com" className="support-link">saleonline@anta.com</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="next-steps">
+            <h2>Điều gì sẽ xảy ra tiếp theo?</h2>
+            <div className="steps-grid">
+              <div className="step-box">
+                <div className="step-number">1</div>
+                <div className="step-icon">📧</div>
+                <h3>Xác nhận qua email</h3>
+                <p>Chúng tôi đã gửi email xác nhận đơn hàng đến {orderData.customer.email || 'địa chỉ email của bạn'}</p>
+              </div>
+              <div className="step-box">
+                <div className="step-number">2</div>
+                <div className="step-icon">📦</div>
+                <h3>Chuẩn bị đơn hàng</h3>
+                <p>Ch��ng tôi đang kiểm tra và đóng gói s��n phẩm cẩn thận cho bạn</p>
+              </div>
+              <div className="step-box">
+                <div className="step-number">3</div>
+                <div className="step-icon">🚚</div>
+                <h3>Giao hàng đến bạn</h3>
+                <p>Đơn vị vận chuyển sẽ liên hệ và giao hàng trong 3-5 ngày làm việc</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="action-section">
+            <button className="secondary-button" onClick={() => navigate('/home')}>
+              <span>←</span>
+              Tiếp tục mua sắm
+            </button>
+            <button className="primary-button" onClick={() => navigate('/account/orders')}>
+              Theo dõi đơn hàng
+              <span>→</span>
+            </button>
+          </div>
+
+          <div className="trust-badges">
+            <div className="badge-item">
+              <span className="badge-icon">✓</span>
+              <span className="badge-text">Chính hãng 100%</span>
+            </div>
+            <div className="badge-item">
+              <span className="badge-icon">✓</span>
+              <span className="badge-text">Đổi trả trong 30 ngày</span>
+            </div>
+            <div className="badge-item">
+              <span className="badge-icon">✓</span>
+              <span className="badge-text">Bảo hành chính hãng</span>
+            </div>
+            <div className="badge-item">
+              <span className="badge-icon">✓</span>
+              <span className="badge-text">Miễn phí giao hàng</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
