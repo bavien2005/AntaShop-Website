@@ -10,7 +10,6 @@ import {
   ForgotPassword,
   ResetPassword,
   AdminPage,
-  MegaSale,
   CartPage,
   ProductListPage,
   ProductDetailPage,
@@ -41,7 +40,7 @@ function App() {
                     <Route path={ROUTES.HOME} element={<HomePage />} />
                     <Route path={ROUTES.ADMIN} element={<ProtectedRoute requireAdmin={true}><AdminPage /></ProtectedRoute>} />
                     <Route path={ROUTES.CART} element={<CartPage />} />
-                    <Route path={ROUTES.MEGA_SALE} element={<MegaSale />} />
+                    <Route path={ROUTES.MEGA_SALE} element={<ProductListPage />} />
                     <Route path="/products" element={<ProductListPage />} />
                     <Route path="/product/:id" element={<ProductDetailPage />} />
                     <Route path="/blog" element={<BlogPage />} />

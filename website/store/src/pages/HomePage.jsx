@@ -194,7 +194,7 @@ export default function HomePage() {
                   Cơ hội vàng sở hữu giày thể thao chính hãng với giá tốt nhất. 
                   Khuyến mãi có giới hạn, nhanh tay đặt hàng ngay!
                 </p>
-                <button className="promo-banner-button" onClick={() => navigate('/collections/san-pham-mega-sale')}>
+                <button className="promo-banner-button" onClick={() => navigate('/products')}>
                   MUA NGAY
                 </button>
               </div>

@@ -97,7 +97,7 @@ export const USER_ROLES = {
 
 export const MENU_ITEMS = [
   { id: 1, name: "TRANG CHỦ", link: '/home' },
-  { id: 2, name: "🔥 UP TO 50%", link: '/collections/san-pham-mega-sale', highlight: true },
+  { id: 2, name: "🔥 UP TO 50%", link: '/products', highlight: true },
   { id: 3, name: "HÀNG MỚI", link: '/new' },
   { id: 4, name: "ĐỘC QUYỀN ONLINE", link: '/exclusive' },
   {
