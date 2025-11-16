@@ -12,7 +12,7 @@ export const ROUTES = {
 };
 
 export const API_ENDPOINTS = {
-  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
+  BASE_URL: import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCT_SERVICE_URL || 'http://localhost:8080',
   AUTH: {
     LOGIN: '/api/auth/login',
     REGISTER: '/api/auth/register',

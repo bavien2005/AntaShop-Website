@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Layout } from '../components';
 import { useCart, useAuth, useDataSync } from '../contexts';
-import { adminOrderService } from '../services/adminService';
+import adminService from '../services/adminService';
 import { momoPaymentService } from '../services';
 import { generateMoMoQR, generateVNPayQR, generateBankTransferQR } from '../utils/qrCodeGenerator';
 import './CheckoutPage.css';

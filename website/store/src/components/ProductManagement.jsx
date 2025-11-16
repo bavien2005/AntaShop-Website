@@ -1,3 +1,4 @@
+// src/components/ProductManagement.jsx
 import React, { useState, useEffect } from 'react';
 import AddProduct from './AddProduct';
 import adminService from '../services/adminService';
@@ -63,12 +64,16 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
   };
 
   const renderStars = (rating) => {
-    return '★'.repeat(rating) + '☆'.repeat(5 - rating);
+    const r = Number.isFinite(rating) ? rating : 0;
+    return '★'.repeat(r) + '☆'.repeat(5 - r);
   };
 
   const formatPrice = (price) => {
+    if (price === null || price === undefined || isNaN(price)) return '—';
     return new Intl.NumberFormat('vi-VN').format(price);
   };
+
+  const placeholderImage = 'https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=400';
 
   const handleDeleteProduct = async (productId) => {
     if (window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) {
@@ -97,6 +102,32 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
     setEditingProduct(null);
     await loadProducts();
     if (onDataChange) onDataChange();
+  };
+
+  // --- NEW: helper to extract image and variant info ---
+  const getProductImage = (product) => {
+    if (!product) return placeholderImage;
+    return product.thumbnail || product.image || (product.images && product.images[0]) || placeholderImage;
+  };
+
+  const getVariantsCount = (product) => {
+    if (!product) return 0;
+    if (Array.isArray(product.variants)) return product.variants.length;
+    return 0;
+  };
+
+  const getVariantsTooltip = (product) => {
+    if (!product || !Array.isArray(product.variants) || product.variants.length === 0) return 'Không có variant';
+    return product.variants
+      .map(v => {
+        const parts = [];
+        if (v.sku) parts.push(`SKU:${v.sku}`);
+        if (v.size !== undefined && v.size !== null && v.size !== '') parts.push(`Size:${v.size}`);
+        if (v.color) parts.push(`${v.color}`);
+        if (v.quantity !== undefined && v.quantity !== null) parts.push(`Qty:${v.quantity}`);
+        return parts.join(' • ');
+      })
+      .join('\n');
   };
 
   if (activeSubTab === 'add-product') {
@@ -296,6 +327,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                   <th className="col-price">Giá</th>
                   <th className="col-quantity">Số lượng</th>
                   <th className="col-sales">Đã bán</th>
+                  <th className="col-variants">Variants</th> {/* NEW */}
                   <th className="col-rating">Đánh giá</th>
                   <th className="col-status">Trạng thái</th>
                   <th className="col-actions">Thao tác</th>
@@ -306,7 +338,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                   <tr key={product.id} className="table-row">
                     <td className="product-cell">
                       <div className="product-info-cell">
-                        <img src={product.image} alt={product.name} className="product-thumbnail" />
+                        <img src={getProductImage(product)} alt={product.name} className="product-thumbnail" />
                         <span className="product-name">{product.name}</span>
                       </div>
                     </td>
@@ -314,10 +346,13 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                     <td className="price-cell">{formatPrice(product.price)} VNĐ</td>
                     <td className="quantity-cell">
                       <span className={product.status === 'low-stock' ? 'low-stock-badge' : ''}>
-                        {product.quantity}
+                        {product.quantity ?? 0}
                       </span>
                     </td>
-                    <td className="sales-cell">{product.sales}</td>
+                    <td className="sales-cell">{product.sales ?? 0}</td>
+                    <td className="variants-cell" title={getVariantsTooltip(product)}>
+                      {getVariantsCount(product)}
+                    </td>
                     <td className="rating-cell">
                       <span className="star-rating">{renderStars(product.rating)}</span>
                     </td>

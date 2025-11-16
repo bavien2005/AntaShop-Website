@@ -1,322 +1,261 @@
+// src/services/api.js
 import axios from 'axios';
 import { API_ENDPOINTS, STORAGE_KEYS } from '../constants';
 import { getErrorMessage } from '../utils';
 
-// Create axios instance
+// ---------- general api (default baseURL) ----------
 const api = axios.create({
   baseURL: API_ENDPOINTS.BASE_URL,
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (err) => Promise.reject(err)
 );
 
-// Response interceptor to handle errors
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired, clear storage and let AuthContext handle redirect
       localStorage.removeItem(STORAGE_KEYS.TOKEN);
       localStorage.removeItem(STORAGE_KEYS.USER);
-      // Dispatch custom event for AuthContext to handle navigation
       window.dispatchEvent(new CustomEvent('auth:logout'));
     }
     return Promise.reject(error);
   }
 );
 
-// Auth services
+// ---------- productApi: gọi trực tiếp product-service (VITE_PRODUCT_SERVICE_URL) ----------
+export const productApi = axios.create({
+  baseURL: import.meta.env.VITE_PRODUCT_SERVICE_URL || API_ENDPOINTS.BASE_URL,
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+productApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  },
+  (err) => Promise.reject(err)
+);
+
+// ----------------- Named service exports (used throughout the FE) -----------------
+
+// AUTH
 export const authService = {
   login: async (credentials) => {
     try {
-      const response = await api.post(API_ENDPOINTS.AUTH.LOGIN, credentials);
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.post(API_ENDPOINTS.AUTH.LOGIN, credentials);
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
   register: async (userData) => {
     try {
-      const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, userData);
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.post(API_ENDPOINTS.AUTH.REGISTER, userData);
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
   refreshToken: async () => {
     try {
-      const response = await api.post(API_ENDPOINTS.AUTH.REFRESH);
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.post(API_ENDPOINTS.AUTH.REFRESH);
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
-  },
+  }
 };
 
-// Product services
+// PRODUCT (user-facing)
 export const productService = {
   getProducts: async (params = {}) => {
     try {
-      const response = await api.get(API_ENDPOINTS.PRODUCTS.LIST, { params });
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.get(API_ENDPOINTS.PRODUCTS.LIST, { params });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
   getProduct: async (id) => {
     try {
-      const response = await api.get(API_ENDPOINTS.PRODUCTS.DETAIL.replace(':id', id));
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.get(API_ENDPOINTS.PRODUCTS.DETAIL.replace(':id', id));
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
   searchProducts: async (query) => {
     try {
-      const response = await api.get(API_ENDPOINTS.PRODUCTS.SEARCH, {
-        params: { q: query }
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.get(API_ENDPOINTS.PRODUCTS.SEARCH, { params: { q: query } });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
-  },
+  }
 };
 
-// Cart services
+// CART
 export const cartService = {
   addToCart: async (productId, quantity = 1) => {
     try {
-      const response = await api.post(API_ENDPOINTS.CART.ADD, {
-        productId,
-        quantity
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.post(API_ENDPOINTS.CART.ADD, { productId, quantity });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
   removeFromCart: async (productId) => {
     try {
-      const response = await api.delete(API_ENDPOINTS.CART.REMOVE, {
-        data: { productId }
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.delete(API_ENDPOINTS.CART.REMOVE, { data: { productId } });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
   updateCartItem: async (productId, quantity) => {
     try {
-      const response = await api.put(API_ENDPOINTS.CART.UPDATE, {
-        productId,
-        quantity
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
+      const res = await api.put(API_ENDPOINTS.CART.UPDATE, { productId, quantity });
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
-  },
+  }
 };
 
-// 🧩 USER SERVICE - REAL BACKEND (MySQL)
+// USER (some endpoints may be mocks if BE not ready)
 export const userService = {
-  // Lấy thông tin người dùng (tạm dùng localStorage)
   getProfile: async () => {
-    const user = JSON.parse(localStorage.getItem('anta_user'));
+    const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || 'null');
     return {
       fullName: user?.username || '',
       email: user?.email || '',
       phone: '',
       birthday: '',
-      gender: '',
+      gender: ''
     };
   },
 
   updateProfile: async (data) => {
-    // Nếu bạn có API cập nhật user thật, có thể thêm sau
+    // implement when BE exists; return mock for now
     return data;
   },
 
   changePassword: async (data) => {
-    // Nếu backend có API đổi mật khẩu, thêm ở đây
     return { message: 'Đổi mật khẩu thành công (mock)' };
   },
 
-  // ==============================
-  // 🏠 ADDRESS API (REAL BACKEND)
-  // ==============================
-
-  // ✅ Bản mới — BE trả về List<AddressResponse>
+  // Addresses using real BE if available
   getAddresses: async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('anta_user'));
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || 'null');
+      if (!user) return [];
       const res = await api.get(`/api/address/allUserAddress/${user.id}`);
-      const data = res.data;
-
-      // Nếu BE trả về đúng list
-      if (Array.isArray(data)) {
-        return data;
-      }
-
-      // Nếu lỡ có kiểu object thì fallback (đảm bảo an toàn)
-      if (typeof data === 'object') {
-        const list = Object.values(data).find(v => Array.isArray(v));
+      const d = res.data;
+      if (Array.isArray(d)) return d;
+      if (typeof d === 'object') {
+        const list = Object.values(d).find(v => Array.isArray(v));
         return list || [];
       }
-
       return [];
-    } catch (error) {
-      console.error('❌ Error getAddresses:', error);
-      throw new Error(error.response?.data || error.message);
+    } catch (err) {
+      console.error('Error getAddresses', err);
+      throw new Error(getErrorMessage(err));
     }
   },
 
-  // Thêm địa chỉ mới
   addAddress: async (addressData) => {
     try {
-      const user = JSON.parse(localStorage.getItem('anta_user'));
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || 'null');
       const payload = {
         detailedAddress: addressData.detailedAddress || addressData.address,
         country: addressData.country || 'Vietnam',
         phoneNumber: addressData.phoneNumber || addressData.phone,
         recipientName: addressData.recipientName,
         postalCode: addressData.postalCode || '',
-        isDefault: addressData.isDefault || false,
+        isDefault: addressData.isDefault || false
       };
       const res = await api.post(`/api/address/add/${user.id}`, payload);
-      return Object.keys(res.data)[0]; // BE trả về Map<AddressResponse, String>
-    } catch (error) {
-      console.error('❌ Error addAddress:', error);
-      throw new Error(error.response?.data || error.message);
+      return Object.keys(res.data)[0];
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
-  // Cập nhật địa chỉ
   updateAddress: async (id, addressData) => {
     try {
-      const user = JSON.parse(localStorage.getItem('anta_user'));
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || 'null');
       const payload = {
         detailedAddress: addressData.detailedAddress || addressData.address,
         country: addressData.country || 'Vietnam',
         phoneNumber: addressData.phoneNumber || addressData.phone,
         recipientName: addressData.recipientName,
         postalCode: addressData.postalCode || '',
-        isDefault: addressData.isDefault || false,
+        isDefault: addressData.isDefault || false
       };
-      const res = await api.put(
-        `/api/address/update/addressId/${id}/userId/${user.id}`,
-        payload
-      );
+      const res = await api.put(`/api/address/update/addressId/${id}/userId/${user.id}`, payload);
       return Object.keys(res.data)[0];
-    } catch (error) {
-      console.error('❌ Error updateAddress:', error);
-      throw new Error(error.response?.data || error.message);
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
-  // Xóa địa chỉ
   deleteAddress: async (id) => {
     try {
-      const user = JSON.parse(localStorage.getItem('anta_user'));
-      const res = await api.delete(
-        `/api/address/delete/addressId/${id}/userId/${user.id}`
-      );
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || 'null');
+      const res = await api.delete(`/api/address/delete/addressId/${id}/userId/${user.id}`);
       return res.data;
-    } catch (error) {
-      console.error('❌ Error deleteAddress:', error);
-      throw new Error(error.response?.data || error.message);
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
     }
   },
 
-  // ✅ Gọi API thật để đặt địa chỉ mặc định
-setDefaultAddress: async (id) => {
-  try {
-    const user = JSON.parse(localStorage.getItem('anta_user'));
-    const res = await api.put(`/api/address/setDefault/${id}/user/${user.id}`);
-    return res.data;
-  } catch (error) {
-    console.error('❌ Error setDefaultAddress:', error);
-    throw new Error(error.response?.data || error.message);
+  setDefaultAddress: async (id) => {
+    try {
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || 'null');
+      const res = await api.put(`/api/address/setDefault/${id}/user/${user.id}`);
+      return res.data;
+    } catch (err) {
+      throw new Error(getErrorMessage(err));
+    }
   }
-},
 };
 
-// Order services - Using mock data
+// ORDER / WISHLIST - keep as wrappers (mocking handled elsewhere if needed)
 export const orderService = {
+  // If you have real endpoints, replace these with `api` calls.
   getOrders: async (params = {}) => {
-    try {
-      return await mockUserService.orders.getOrders(params);
-    } catch (error) {
-      throw new Error(error.message || 'Lỗi khi tải đơn hàng');
-    }
+    // fallback: empty list / or call mock service
+    return [];
   },
-
   getOrder: async (id) => {
-    try {
-      return await mockUserService.orders.getOrder(id);
-    } catch (error) {
-      throw new Error(error.message || 'Lỗi khi tải chi tiết đơn hàng');
-    }
+    return null;
   },
-
   cancelOrder: async (id) => {
-    try {
-      return await mockUserService.orders.cancelOrder(id);
-    } catch (error) {
-      throw new Error(error.message || 'Lỗi khi hủy đơn hàng');
-    }
-  },
+    return { message: 'Canceled (mock)' };
+  }
 };
 
-// Wishlist services - Using mock data
 export const wishlistService = {
-  getWishlist: async () => {
-    try {
-      return await mockUserService.wishlist.getWishlist();
-    } catch (error) {
-      throw new Error(error.message || 'Lỗi khi tải danh sách yêu thích');
-    }
-  },
-
-  addToWishlist: async (productId) => {
-    try {
-      return await mockUserService.wishlist.addToWishlist(productId);
-    } catch (error) {
-      throw new Error(error.message || 'Lỗi khi thêm vào danh sách yêu thích');
-    }
-  },
-
-  removeFromWishlist: async (id) => {
-    try {
-      return await mockUserService.wishlist.removeFromWishlist(id);
-    } catch (error) {
-      throw new Error(error.message || 'Lỗi khi xóa khỏi danh sách yêu thích');
-    }
-  },
+  getWishlist: async () => { return []; },
+  addToWishlist: async (productId) => { return { success: true }; },
+  removeFromWishlist: async (id) => { return { success: true }; }
 };
 
 export default api;

@@ -610,9 +610,14 @@ export default function Register() {
                       }
                     }}
                     onFocus={(e) => {
-                      // đặt con trỏ ở cuối, không select toàn bộ để tránh phải bôi đen mới xóa
+                        // 1. Đặt con trỏ ở cuối
                       const len = e.target.value?.length || 0;
-                      try { e.target.setSelectionRange(len, len); } catch (err) { }
+                      try {
+                        e.target.setSelectionRange(len, len);
+                      } catch (err) { }
+
+                      // 2. Đổi màu border
+                      e.target.style.borderColor = "#007bff";
                     }}
                     onKeyDown={(e) => {
                       const key = e.key;
@@ -659,8 +664,7 @@ export default function Register() {
                       caretColor: "#000", // hiện con trỏ
                       transition: "all 0.15s ease",
                     }}
-                    onBlur={(e) => (e.target.style.borderColor = "#d9d9d9")}
-                    onFocus={(e) => (e.target.style.borderColor = "#007bff")}
+
                   />
                 ))}
               </div>
