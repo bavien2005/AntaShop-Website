@@ -1,3 +1,5 @@
+//src/components/AdminAddProduct.jsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { products as adminProductService } from '../services';
 import './AdminAddProduct.css';
@@ -100,20 +102,24 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
   };
 
   const handleImageUpload = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     try {
-      const base64List = await readFilesToBase64(files);
+      setLoading(true);
+      const uploaded = await uploadMultipleToCloud(files, 1); // uploaderId from current user
+      // uploaded: [{ id, url, publicId, ... }]
       setForm(prev => {
         const hasMain = prev.images.some(i => i.isMain);
-        const newImgs = base64List.map(src => ({ src, isMain: false }));
+        const newImgs = uploaded.map((f, idx) => ({ src: f.url, id: f.id, isMain: false }));
         if (!hasMain && newImgs.length) newImgs[0].isMain = true;
         return { ...prev, images: [...prev.images, ...newImgs] };
       });
       e.target.value = '';
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Lỗi khi đọc file ảnh');
+      alert('Upload ảnh thất bại');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -188,12 +194,12 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
       brand: form.brand || null,
       description: form.description || '',
       category: form.category,
-      images: imagesArr.length ? imagesArr : undefined,
-      thumbnail: thumbnail || undefined,
-
+      // send imageIds (Phương án B)
+      imageIds: form.images && form.images.length ? form.images.map(i => i.id) : undefined,
+      // keep backward compat optional images urls if needed
+      images: undefined,
       price: variants.length ? undefined : Number(form.price) || 0,
       totalStock: variants.length ? undefined : Number(form.totalStock) || 0,
-
       variants: variants.length
         ? variants.map(v => ({
           sku: v.sku || undefined,
@@ -205,6 +211,7 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         }))
         : undefined
     };
+
 
     try {
       const res = editingProduct
@@ -306,7 +313,7 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
                           onClick={() => removeImage(idx)}
                           title="Xóa ảnh"
                         >
-                            Xóa
+                          Xóa
                         </button>
 
                         {!img.isMain && (
@@ -316,7 +323,7 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
                             onClick={() => setMainImage(idx)}
                             title="Đặt làm ảnh chính"
                           >
-                             Đặt ảnh chính
+                            Đặt ảnh chính
                           </button>
                         )}
                       </div>

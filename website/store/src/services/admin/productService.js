@@ -1,7 +1,7 @@
 // src/services/admin/productService.js
 import { productApi } from '../api';
 
-const USE_REAL_PRODUCT_API = !!import.meta.env.VITE_PRODUCT_SERVICE_URL;
+const USE_REAL_PRODUCT_API = !!import.meta.env.VITE_API_URL;
 const productBase = '/api/product'; // backend routes e.g. /api/product/add
 
 // Mock fallback (simple)
@@ -26,7 +26,7 @@ const normalizeFromBackend = (p) => ({
   quantity: p.totalStock ?? p.quantity ?? 0,
   category: p.category || (p.categories && p.categories[0]) || '',
   rating: p.rating ?? 5,
-  status: p.status || ((p.totalStock && p.totalStock <= 5) ? 'low-stock' : 'active'),
+  status: p.status || ((p.totalStock != null && Number(p.totalStock) <= 5) ? 'low-stock' : 'active'),
   sales: p.sales ?? 0,
   variants: Array.isArray(p.variants) ? p.variants : []
 });
@@ -111,7 +111,7 @@ export const adminProductService = {
         price,
         quantity: totalQuantity,
         category: payload.category || '',
-        variants: variants.map((v, i) => ({ id: `${newId}-${i+1}`, ...v })),
+        variants: variants.map((v, i) => ({ id: `${newId}-${i + 1}`, ...v })),
         createdAt: new Date().toISOString()
       };
       mockProducts.unshift(newProduct);
@@ -150,7 +150,7 @@ export const adminProductService = {
     if (idx === -1) return { success: false, error: 'Không tìm thấy sản phẩm' };
     const merged = { ...mockProducts[idx], ...productData };
     if (Array.isArray(productData.variants)) {
-      merged.variants = productData.variants.map((v, i) => ({ id: v.id || `${merged.id}-${i+1}`, ...v }));
+      merged.variants = productData.variants.map((v, i) => ({ id: v.id || `${merged.id}-${i + 1}`, ...v }));
       merged.quantity = merged.variants.reduce((s, v) => s + (Number(v.quantity || v.stock) || 0), 0);
     } else {
       merged.quantity = Number(productData.quantity ?? merged.quantity ?? 0);
