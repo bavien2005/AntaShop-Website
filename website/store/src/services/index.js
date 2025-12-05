@@ -19,6 +19,9 @@ import adminService, {
 // - named exports for real api wrappers (if ./api exists) and for mock admin modules
 export default adminService;
 
+export * as cloud from './cloud';
+export { default as cloudApi } from './cloud';
+
 // re-export real api wrappers (if you have ./api implemented)
 export { api, authService, realProductService as productService, cartService, userService, realOrderService as orderService, wishlistService, momoPaymentService };
 

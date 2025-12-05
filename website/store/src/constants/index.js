@@ -1,4 +1,3 @@
-// Application constants
 //src/constants/index.js
 export const ROUTES = {
   HOME: '/home',
