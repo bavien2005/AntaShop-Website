@@ -303,32 +303,19 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
 
                       return (
                         <tr key={vid} className="variant-row">
-                          {/* IMPORTANT: give variant first cell the same display class as parent so layout matches */}
-                          <td className="product-cell col-product">
-                            <div className="variant-product-content">
-                              <img src={v.thumbnail || product.thumbnail || placeholderImage} alt={v.sku || v.id} className="variant-thumbnail" />
-                              <div className="variant-main-inline">
-                                <div style={{ fontWeight:800, fontSize:13 }}>{v.sku ?? `Variant ${idx+1}`}</div>
-                                <div className="variant-meta">{metaParts.join(' • ') || (v.attributes ? Object.entries(v.attributes).map(([k,val]) => `${k}:${val}`).join(' • ') : '')}</div>
+                          <td className="variant-detail-cell" colSpan={9}>
+                            <div className="variant-row-inner">
+                              <div className="variant-product-content">
+                                <img src={v.thumbnail || product.thumbnail || placeholderImage} alt={v.sku || v.id} className="variant-thumbnail" />
+                                <div className="variant-main-inline">
+                                  <div style={{ fontWeight:800, fontSize:13 }}>{v.sku ?? `Variant ${idx+1}`}</div>
+                                  <div className="variant-meta">{metaParts.join(' • ') || (v.attributes ? Object.entries(v.attributes).map(([k,val]) => `${k}:${val}`).join(' • ') : '')}</div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-
-                          {/* hide duplicate category on variant row (left intentionally blank) */}
-                          <td className="col-category">&nbsp;</td>
-
-                          <td className="col-price" style={{ whiteSpace: 'nowrap' }}>{vPriceText}</td>
-                          <td className="col-quantity" style={{ whiteSpace: 'nowrap' }}>{vStock}</td>
-                          <td className="col-sales" style={{ whiteSpace: 'nowrap' }}>{v.sales ?? (product.sales ?? 0)}</td>
-                          <td className="col-variants" style={{textAlign:'center', whiteSpace: 'nowrap'}}>{v.id ?? '-'}</td>
-                          <td className="col-rating" style={{textAlign:'center', whiteSpace: 'nowrap'}}>{'★'.repeat(product.rating ?? 5)}</td>
-                          <td className="col-status" style={{textAlign:'center', whiteSpace: 'nowrap'}}>
-                            <span className={`status-indicator ${vStock > 0 ? 'active' : 'low-stock'}`}>{vStock > 0 ? 'ĐANG BÁN' : 'HẾT'}</span>
-                          </td>
-                          <td className="col-actions" style={{textAlign:'center', whiteSpace: 'nowrap'}}>
-                            <div className="action-buttons-group">
-                              <button className="action-edit-btn" onClick={() => alert('Edit variant: ' + (v.sku || v.id))}>✏️</button>
-                              <button className="action-delete-btn" onClick={() => alert('Delete variant: ' + (v.sku || v.id))}>🗑️</button>
+                              <div className="variant-right-info">
+                                <span className="variant-price-text">{vPriceText}</span>
+                                <span className="variant-stock-text">SL: {vStock}</span>
+                              </div>
                             </div>
                           </td>
                         </tr>

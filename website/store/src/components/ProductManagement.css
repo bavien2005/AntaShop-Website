@@ -42,8 +42,13 @@
 /* Products table */
 .products-table-card{ background:#fff; border-radius:var(--radius-lg); box-shadow:0 10px 25px rgba(15,23,42,0.06); border:1px solid #E5E7EB; overflow:auto; }
 
-/* Table: use auto layout so columns can size by content while colgroup still guides proportions */
-.data-table{ width:100%; border-collapse:collapse; table-layout:auto; min-width:1100px; }
+/* Table: use fixed layout so colgroup widths are respected and columns don't shift when content changes */
+.data-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  min-width:1100px;
+}
 .data-table thead{ background:#F9FAFB; border-bottom:1px solid #E5E7EB; }
 /* ensure box-sizing so padding doesn't break widths */
 .data-table th, .data-table td { box-sizing: border-box; }
@@ -97,7 +102,7 @@
 }
 
 /* Variant adjustments (KEY PARTS) */
-/* make variant row look like a single horizontal line (no wrapping) */
+/* make variant row look like a single horizontal line */
 .variant-row{
   background: linear-gradient(90deg, rgba(250,250,250,0.95), rgba(255,255,255,1));
 }
@@ -106,11 +111,19 @@
   border-bottom:1px dashed rgba(200,200,200,0.06);
   padding-top:12px;
   padding-bottom:12px;
+}
 
-  /* force single-line layout per cell */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* single-cell variant detail spanning all columns */
+.variant-detail-cell{
+  margin-left: 100px;
+  padding-left:72px; /* align content roughly under product image area */
+}
+
+.variant-row-inner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
 }
 
 /* Variant product content - inline layout */
@@ -139,6 +152,29 @@
   gap:4px;
   min-width: 160px; /* reserve some width so sku text doesn't overlap other columns */
   max-width: 380px;
+}
+
+.variant-right-info{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  font-size:13px;
+}
+
+.variant-price-text{
+  font-weight:700;
+}
+
+.variant-stock-text{
+  color:var(--text-muted);
+}
+
+/* keep SKU/meta text on one line and ellipsize so it doesn't push other columns */
+.variant-main-inline > div,
+.variant-meta{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* small meta text (size/color) */
