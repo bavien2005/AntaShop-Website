@@ -7,6 +7,7 @@ import adminService from '../services/adminService';
 import ProductOverviewChart from '../pages/ProductOverviewChart';
 
 import './AdminPage.css';
+import DashboardStatsTabs from '../components/DashboardStatsTabs';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -150,21 +151,10 @@ export default function AdminPage() {
     switch (activeTab) {
       case 'product-stats':
         return (
-          <div className="admin-content-section">
-            <div className="section-header">
-              <h1 className="section-title-main">Thống kê sản phẩm</h1>
-              <div style={{ marginLeft: 'auto' }}>
-                {/* nếu muốn truyền topN từ admin */}
-                {/* <button onClick={() => setActiveTab('dashboard')}>Quay lại</button> */}
-              </div>
-            </div>
+          <DashboardStatsTabs></DashboardStatsTabs>
 
-            {/* Option A: ProductOverviewChart (horizontal grouped bars + highlight) */}
-            <ProductOverviewChart topN={10} useMock={false} />
-
-            {/* Option B: nếu bạn muốn dùng ProductStatsPage thay thế, comment ProductOverviewChart và dùng: */}
-            {/* <ProductStatsPage topN={10} /> */}
-          </div>
+         
+          
         );
       case 'dashboard':
         return (
