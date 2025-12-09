@@ -223,6 +223,16 @@ export const cartService = {
   }
 };
 
+// ------------------- REVENUE / DASHBOARD SERVICE -------------------
+export const revenueService = {
+  getWeeklyRevenue: async () => {
+    const res = await api.get('/api/dashboard/revenue/weekly');
+    // Backend: revenue-service qua gateway /api/dashboard/**
+    // Trả về: [{ week: "2025-W50", expectedRevenue: 2781997.63, actualRevenue: 1234567.89 }, ...]
+    return res.data;
+  }
+};
+
 // Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
 const getCartDirectly = async (userId, sessionId) => {
   try {

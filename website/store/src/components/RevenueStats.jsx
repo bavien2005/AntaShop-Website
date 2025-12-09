@@ -1,24 +1,22 @@
+// src/components/admin/RevenueStats.jsx (hoặc chỗ bạn đang để)
 import React, { useEffect, useState } from 'react';
-import { Line, Bar } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
-  LineElement,
-  PointElement,
   Title,
   Tooltip,
   Legend
 } from 'chart.js';
 import './RevenueStats.css';
+import { revenueService } from '../services/api.js'; // ⚠️ chỉnh lại path cho đúng với cấu trúc thư mục của bạn
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
-  LineElement,
-  PointElement,
   Title,
   Tooltip,
   Legend
@@ -26,198 +24,122 @@ ChartJS.register(
 
 function formatCurrency(v) {
   try {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND'
+    }).format(v || 0);
   } catch (e) {
     return v;
   }
 }
 
-// Dummy data generators
-const generateRevenueData = () => {
-  const months = ['01/2024', '02/2024', '03/2024', '04/2024', '05/2024', '06/2024',
-                 '07/2024', '08/2024', '09/2024', '10/2024', '11/2024', '12/2024'];
-  const actualRevenue = months.map(() => Math.floor(Math.random() * 50000000) + 10000000);
-  const expectedRevenue = actualRevenue.map(val => val + Math.floor(Math.random() * 20000000) - 5000000);
-
-  return { months, actualRevenue, expectedRevenue };
-};
-
-const generateDailyData = () => {
-  const days = Array.from({ length: 30 }, (_, i) => `${i + 1}`);
-  const revenue = days.map(() => Math.floor(Math.random() * 2000000) + 500000);
-
-  return { days, revenue };
-};
-
-const generateCartData = () => {
-  const categories = ['Giày Sneaker', 'Giày Thể Thao', 'Giày Công Sở', 'Giày Casual', 'Giày Đá Banh'];
-  const expectedRevenue = categories.map(() => Math.floor(Math.random() * 15000000) + 2000000);
-
-  return { categories, expectedRevenue };
-};
-
 export default function RevenueStats() {
   const [loading, setLoading] = useState(true);
-  const [actualRevenueData, setActualRevenueData] = useState(null);
-  const [expectedRevenueData, setExpectedRevenueData] = useState(null);
-  const [comparisonData, setComparisonData] = useState(null);
+  const [chartData, setChartData] = useState(null);
+  const [chartOptions, setChartOptions] = useState({});
+  const [totals, setTotals] = useState({
+    totalActual: 0,
+    totalExpected: 0
+  });
 
   useEffect(() => {
-    // Simulate API calls
-    setTimeout(() => {
-      const { months, actualRevenue, expectedRevenue } = generateRevenueData();
-      const { days, revenue: dailyRevenue } = generateDailyData();
-      const { categories, expectedRevenue: cartRevenue } = generateCartData();
+    const fetchRevenue = async () => {
+      try {
+        setLoading(true);
 
-      // Chart 1: Actual Revenue (Line Chart - Daily)
-      const actualData = {
-        labels: days,
-        datasets: [{
-          label: 'Doanh thu thực tế (VNĐ)',
-          data: dailyRevenue,
-          borderColor: 'rgba(14, 165, 233, 1)',
-          backgroundColor: 'rgba(14, 165, 233, 0.1)',
-          tension: 0.4,
-          fill: true
-        }]
-      };
+        // Gọi BE: /api/dashboard/revenue/weekly
+        const weekly = await revenueService.getWeeklyRevenue();
+        const data = Array.isArray(weekly) ? weekly : [];
 
-      const actualOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top' },
-          title: {
-            display: true,
-            text: 'Doanh thu thực tế theo ngày',
-            font: { size: 16, weight: 'bold' },
-            padding: { top: 10, bottom: 20 }
+        // labels = tuần: "2025-W50", "2025-W51", ...
+        const labels = data.map((item) => item.week);
+
+        const expectedData = data.map(
+          (item) => item.expectedRevenue || 0
+        );
+        const actualData = data.map(
+          (item) => item.actualRevenue || 0
+        );
+
+        setChartData({
+          labels,
+          datasets: [
+            {
+              label: 'Doanh thu dự kiến (từ giỏ hàng)',
+              data: expectedData,
+              backgroundColor: 'rgba(245, 158, 11, 0.8)',
+              borderColor: 'rgba(245, 158, 11, 1)',
+              borderWidth: 1,
+              borderRadius: 6,
+              borderSkipped: false
+            },
+            {
+              label: 'Doanh thu thực tế (đơn hàng hoàn tất)',
+              data: actualData,
+              backgroundColor: 'rgba(14, 165, 233, 0.8)',
+              borderColor: 'rgba(14, 165, 233, 1)',
+              borderWidth: 1,
+              borderRadius: 6,
+              borderSkipped: false
+            }
+          ]
+        });
+
+        setChartOptions({
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' },
+            title: {
+              display: true,
+              text: 'So sánh doanh thu thực tế vs dự kiến theo tuần',
+              font: { size: 16, weight: 'bold' },
+              padding: { top: 10, bottom: 20 }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  return `${context.dataset.label}: ${formatCurrency(
+                    context.parsed.y
+                  )}`;
+                }
+              }
+            }
           },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return formatCurrency(context.parsed.y);
+          scales: {
+            y: {
+              ticks: {
+                callback: function (value) {
+                  // hiển thị dạng 10M, 20M
+                  return (value / 1_000_000).toFixed(0) + 'M';
+                }
               }
             }
           }
-        },
-        scales: {
-          y: {
-            ticks: {
-              callback: function(value) {
-                return (value / 1000000).toFixed(0) + 'M';
-              }
-            }
-          }
-        }
-      };
+        });
 
-      // Chart 2: Expected Revenue from Cart (Bar Chart)
-      const expectedData = {
-        labels: categories,
-        datasets: [{
-          label: 'Doanh thu dự kiến từ giỏ hàng (VNĐ)',
-          data: cartRevenue,
-          backgroundColor: 'rgba(245, 158, 11, 0.8)',
-          borderColor: 'rgba(245, 158, 11, 1)',
-          borderWidth: 1,
-          borderRadius: 8,
-          borderSkipped: false,
-        }]
-      };
+        const totalExpected = expectedData.reduce(
+          (sum, v) => sum + v,
+          0
+        );
+        const totalActual = actualData.reduce(
+          (sum, v) => sum + v,
+          0
+        );
 
-      const expectedOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top' },
-          title: {
-            display: true,
-            text: 'Doanh thu dự kiến từ sản phẩm trong giỏ hàng',
-            font: { size: 16, weight: 'bold' },
-            padding: { top: 10, bottom: 20 }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return formatCurrency(context.parsed.y);
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            ticks: {
-              callback: function(value) {
-                return (value / 1000000).toFixed(0) + 'M';
-              }
-            }
-          }
-        }
-      };
+        setTotals({
+          totalActual,
+          totalExpected
+        });
+      } catch (err) {
+        console.error('Load weekly revenue error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      // Chart 3: Comparison (Actual vs Expected - Monthly)
-      const comparisonChartData = {
-        labels: months,
-        datasets: [
-          {
-            label: 'Doanh thu thực tế',
-            data: actualRevenue,
-            backgroundColor: 'rgba(14, 165, 233, 0.8)',
-            borderColor: 'rgba(14, 165, 233, 1)',
-            borderWidth: 1,
-            borderRadius: 4,
-          },
-          {
-            label: 'Doanh thu dự kiến',
-            data: expectedRevenue,
-            backgroundColor: 'rgba(245, 158, 11, 0.8)',
-            borderColor: 'rgba(245, 158, 11, 1)',
-            borderWidth: 1,
-            borderRadius: 4,
-          }
-        ]
-      };
-
-      const comparisonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top' },
-          title: {
-            display: true,
-            text: 'So sánh doanh thu thực tế vs dự kiến',
-            font: { size: 16, weight: 'bold' },
-            padding: { top: 10, bottom: 20 }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            ticks: {
-              callback: function(value) {
-                return (value / 1000000).toFixed(0) + 'M';
-              }
-            }
-          }
-        }
-      };
-
-      setActualRevenueData({ data: actualData, options: actualOptions });
-      setExpectedRevenueData({ data: expectedData, options: expectedOptions });
-      setComparisonData({ data: comparisonChartData, options: comparisonOptions });
-      setLoading(false);
-    }, 1000);
+    fetchRevenue();
   }, []);
-
-  const totalActualRevenue = actualRevenueData?.data?.datasets[0]?.data?.reduce((sum, val) => sum + val, 0) || 0;
-  const totalExpectedRevenue = expectedRevenueData?.data?.datasets[0]?.data?.reduce((sum, val) => sum + val, 0) || 0;
 
   return (
     <div className="revenue-stats-container">
@@ -225,47 +147,34 @@ export default function RevenueStats() {
         <h2 className="stats-title">Thống kê doanh thu</h2>
         <div className="stats-summary">
           <div className="summary-item">
-            <div className="summary-label">Thực tế (30 ngày)</div>
-            <div className="summary-value">{(totalActualRevenue / 1000000).toFixed(1)}M</div>
+            <div className="summary-label">
+              Tổng doanh thu thực tế (theo tuần)
+            </div>
+            <div className="summary-value">
+              {formatCurrency(totals.totalActual)}
+            </div>
           </div>
           <div className="summary-item">
-            <div className="summary-label">Dự kiến từ giỏ hàng</div>
-            <div className="summary-value">{(totalExpectedRevenue / 1000000).toFixed(1)}M</div>
+            <div className="summary-label">
+              Tổng doanh thu dự kiến (theo tuần)
+            </div>
+            <div className="summary-value">
+              {formatCurrency(totals.totalExpected)}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="stats-content">
         <div className="chart-grid">
-          {/* Chart 1: Actual Revenue */}
-          <div className="chart-card">
-            <div className="chart-container">
-              {loading ? (
-                <div className="loading-state">Đang tải dữ liệu...</div>
-              ) : (
-                <Line data={actualRevenueData.data} options={actualRevenueData.options} />
-              )}
-            </div>
-          </div>
-
-          {/* Chart 2: Expected Revenue from Cart */}
-          <div className="chart-card">
-            <div className="chart-container">
-              {loading ? (
-                <div className="loading-state">Đang tải dữ liệu...</div>
-              ) : (
-                <Bar data={expectedRevenueData.data} options={expectedRevenueData.options} />
-              )}
-            </div>
-          </div>
-
-          {/* Chart 3: Comparison */}
           <div className="chart-card full-width">
             <div className="chart-container">
-              {loading ? (
-                <div className="loading-state">Đang tải dữ liệu...</div>
+              {loading || !chartData ? (
+                <div className="loading-state">
+                  Đang tải dữ liệu doanh thu...
+                </div>
               ) : (
-                <Bar data={comparisonData.data} options={comparisonData.options} />
+                <Bar data={chartData} options={chartOptions} />
               )}
             </div>
           </div>
