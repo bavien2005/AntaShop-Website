@@ -91,6 +91,7 @@
   color: white;
   border-color: var(--color-primary);
   box-shadow: 0 4px 12px rgba(215, 0, 16, 0.25);
+  color: #6B6B6B;
 }
 
 .tab-button.active:hover {

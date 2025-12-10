@@ -47,6 +47,7 @@
 }
 
 .tab-button.active {
+  color: #6B6B6B !important;
   /* color: var(--color-primary); */
   background: rgba(14, 165, 233, 0.08);
   border-bottom-color: var(--color-primary);
@@ -102,6 +103,7 @@
   }
 
   .tab-button.active {
+    color: #6B6B6B;
     border-bottom: none;
     border-right-color: var(--color-primary);
   }
