@@ -63,6 +63,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+  width: 100%;
 }
 
 .chart-card {
@@ -81,6 +82,7 @@
 
 .chart-card.full-width {
   grid-column: 1 / -1;
+  width: 100%;
 }
 
 .chart-container {
