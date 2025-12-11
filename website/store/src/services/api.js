@@ -204,7 +204,30 @@ export const cartService = {
   },
 };
 
-// direct cart-service fallback
+// <<<<<<< HEAD
+// ------------------- REVENUE / DASHBOARD SERVICE -------------------
+export const revenueService = {
+  getWeeklyRevenue: async () => {
+    try {
+      const res = await api.get(API_ENDPOINTS.ADMIN.STATS.REVENUE_WEEKLY);
+      return res.data;
+    } catch (err) {
+      console.error('Revenue API error:', err);
+      // Fallback mock data
+      return [
+        { week: "2025-W49", expectedRevenue: 2500000, actualRevenue: 1800000 },
+        { week: "2025-W50", expectedRevenue: 3200000, actualRevenue: 2100000 },
+        { week: "2025-W51", expectedRevenue: 2800000, actualRevenue: 2300000 },
+        { week: "2025-W52", expectedRevenue: 3500000, actualRevenue: 1900000 }
+      ];
+    }
+  }
+};
+
+// Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
+// =======
+// // direct cart-service fallback
+// >>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
 const getCartDirectly = async (userId, sessionId) => {
   try {
     const params = new URLSearchParams();
