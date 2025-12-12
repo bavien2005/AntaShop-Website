@@ -1619,10 +1619,10 @@
   gap:16px; padding:14px 16px; border:1px solid var(--border, #eee);
   border-radius:12px; background:#fff; margin-bottom:16px;
 }
-.sel-title{ font-weight:700; margin-bottom:6px; }
-.sel-name{ font-weight:600; }
-.sel-phone{ color:#666; margin:2px 0; }
-.sel-addr{ color:#333; }
+.sel-title{ font-weight:700; margin-bottom:6px;color: #1a1a1a; font-size: 20px; } 
+.sel-name{ font-weight:600; color: #1a1a1a;}
+.sel-phone{ color:#1a1a1a; margin:2px 0; }
+.sel-addr{ color:#1a1a1a; }
 .badge-default{
   display:inline-block; margin-top:6px; padding:2px 8px; border:1px solid #D70010;
   color:#D70010; border-radius:999px; font-size:12px; font-weight:600;

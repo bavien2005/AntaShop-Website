@@ -565,54 +565,7 @@ export default function CartPage() {
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Shipping method (ẩn khi đủ freeship) */}
-                  {localTotalPrice < FREE_SHIPPING_THRESHOLD && (
-                    <div className="shipping-section">
-                      <h3 className="section-title">Phương thức vận chuyển</h3>
-                      <div className="shipping-options">
-                        {Object.entries(SHIPPING_METHODS).map(([key, method]) => {
-                          if (key === 'free') return null;
-                          return (
-                            <label key={key} className="shipping-option">
-                              <input
-                                type="radio"
-                                name="shipping"
-                                value={key}
-                                checked={shippingMethod === key}
-                                onChange={(e) => setShippingMethod(e.target.value)}
-                              />
-                              <div className="shipping-info">
-                                <span className="shipping-name">{method.name}</span>
-                                <span className="shipping-time">({method.time})</span>
-                              </div>
-                              <span className="shipping-price">
-                                {method.price === 0
-                                  ? 'Miễn phí'
-                                  : `${method.price.toLocaleString()}₫`}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  <div className="notes-section">
-                    <h3 className="section-title">Ghi chú đơn hàng</h3>
-                    <textarea
-                      className="order-notes"
-                      placeholder="Ghi chú về đơn hàng, ví dụ: thời gian hay chỉ dẫn địa điểm giao hàng chi tiết hơn."
-                      value={orderNotes}
-                      onChange={(e) => setOrderNotes(e.target.value)}
-                      rows="4"
-                      maxLength="500"
-                    />
-                    <span className="notes-counter">{orderNotes.length}/500</span>
-                  </div>
-
+                  </div>              
                   {/* Order summary */}
                   <div className="order-summary">
                     <h3 className="section-title">Tổng đơn hàng</h3>

@@ -38,6 +38,17 @@ const extractDisplayOrderNumber = (raw) => {
   }
   return '';
 };
+const normalizePaymentMethodKey = (m) => {
+  if (!m) return 'cod';
+  const s = String(m).toLowerCase();
+  if (s.includes('momo')) return 'momo';
+  if (s.includes('vnpay')) return 'vnpay';
+  if (s.includes('zalopay')) return 'zalopay';
+  if (s.includes('bank') || s.includes('transfer')) return 'bank';
+  if (s.includes('cod') || s.includes('cash')) return 'cod';
+  const mClean = s.match(/[a-z0-9]+/);
+  return mClean ? mClean[0] : s;
+};
 
 export default function OrderSuccessPage() {
   const navigate = useNavigate();
@@ -50,9 +61,38 @@ export default function OrderSuccessPage() {
   const hasShownToast = useRef(false);
 
   useEffect(() => {
+    const summary = location.state?.orderSummary;
+    if (summary) {
+      setOrderData({
+        orderNumber: summary.orderNumber,
+        orderDate: summary.orderDate || new Date().toISOString(),
+        items: summary.items || [],
+        subtotal: summary.subtotal || summary.items?.reduce((s, i) => s + (i.lineTotal || i.unitPrice * (i.quantity || 1) || 0), 0),
+        discount: summary.discount || 0,
+        shipping: summary.shipping || 0,
+        total: summary.total || Math.max(0, (summary.subtotal || 0) - (summary.discount || 0) + (summary.shipping || 0)),
+        customer: summary.customer || {},
+        raw: summary.raw || {}
+      });
+      setPaymentConfirmed(Boolean(location.state?.paymentConfirmed || summary.paymentConfirmed));
+      // skip the rest of normalization
+      return;
+    }
+
     // Try to get order data from location state first
     let raw = location.state?.orderData;
-
+    if (!raw) {
+      try {
+        const userOrders = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER_ORDERS) || '[]');
+        console.log('DEBUG_ORDER_FROM_STORAGE_LOAD', { STORAGE_KEYS_USER_ORDERS: STORAGE_KEYS.USER_ORDERS, userOrdersCount: userOrders.length });
+        if (userOrders.length > 0) {
+          raw = userOrders[0] ?? userOrders[userOrders.length - 1];
+        }
+      } catch (error) {
+        console.error('Error loading order from localStorage:', error);
+        raw = null;
+      }
+    }
     // If not in state, try to get the latest order from localStorage
     if (!raw) {
       try {
@@ -74,65 +114,117 @@ export default function OrderSuccessPage() {
 
     // Normalize order object to a stable shape
     try {
-      const normalized = {
-        orderNumber: raw.orderNumber || raw.id || `ANT${Date.now().toString().slice(-8)}`,
-        orderDate: raw.orderDate || raw.date || raw.createdAt || new Date().toISOString(),
-        items: Array.isArray(raw.items)
-          ? raw.items
-          : Array.isArray(raw.products)
-            ? raw.products
-            : Array.isArray(raw.itemsOrdered)
-              ? raw.itemsOrdered
-              : [],
-        subtotal: Number(raw.subtotal ?? raw.total ?? raw.totalAmount ?? 0),
-        discount: Number(raw.discount ?? 0),
-        shipping: Number(raw.shipping ?? 0),
-        total: Number(raw.total ?? raw.totalAmount ?? raw.subtotal ?? 0),
-        promoCode: raw.promoCode ?? raw.promo ?? '',
 
-        // 👉 NEW: chuẩn hoá phương thức & trạng thái thanh toán
-        paymentMethod:
+      // --- REPLACE normalization block with this ---
+      const buildAddressFromRaw = (r) => {
+        const parts = [];
+        // common single-string fallbacks
+        if (r.shippingAddress) parts.push(r.shippingAddress);
+        if (r.address) parts.push(r.address);
+        if (r.detailedAddress) parts.push(r.detailedAddress);
+        if (r.recipientAddress) parts.push(r.recipientAddress);
+        // customer nested
+        if (r.customer) {
+          if (typeof r.customer === 'string') parts.push(r.customer);
+          else {
+            if (r.customer.address) parts.push(r.customer.address);
+            if (r.customer.detailedAddress) parts.push(r.customer.detailedAddress);
+            if (r.customer.street) parts.push(r.customer.street);
+            if (r.customer.ward) parts.push(r.customer.ward);
+            if (r.customer.district) parts.push(r.customer.district);
+            if (r.customer.city) parts.push(r.customer.city);
+          }
+        }
+        // separate fields
+        if (r.street) parts.push(r.street);
+        if (r.ward) parts.push(r.ward);
+        if (r.district) parts.push(r.district);
+        if (r.city) parts.push(r.city);
+        // remove empties and join with comma
+        const cleaned = parts.map(p => (p || '').toString().trim()).filter(Boolean);
+        return cleaned.join(', ') || '';
+      };
+
+      const normalizeItem = (it) => {
+        if (!it) return null;
+        const name = it.name || it.productName || it.title || it.product_name || '';
+        const image = it.image || it.productImage || it.product_image || it.thumbnail || it.imageUrl || it.img || '';
+        const sku = it.sku || it.variantSku || it.code || it.sku_code || '';
+        const size = it.size || it.variantSize || (it.attributes && (it.attributes.size || it.attributes.SIZE)) || '';
+        const color = it.color || it.variantColor || (it.attributes && (it.attributes.color || it.attributes.COLOR)) || '';
+        const quantity = Number(it.quantity ?? it.qty ?? it.count ?? 1);
+        const unitPrice = Number(it.price ?? it.unitPrice ?? it.amount ?? it.unit_price ?? 0) || 0;
+        const lineTotal = Number(it.lineTotal ?? unitPrice * quantity) || (unitPrice * quantity);
+        return { raw: it, productId: it.productId ?? it.product_id, variantId: it.variantId ?? it.variant_id, name, image, sku, size, color, quantity, unitPrice, lineTotal };
+      };
+
+      // parse items from common shapes
+      const itemsRaw = Array.isArray(raw.items) ? raw.items
+        : Array.isArray(raw.products) ? raw.products
+          : Array.isArray(raw.itemsOrdered) ? raw.itemsOrdered
+            : Array.isArray(raw.orderItems) ? raw.orderItems
+              : Array.isArray(raw.line_items) ? raw.line_items
+                : Array.isArray(raw.order_lines) ? raw.order_lines
+                  : (raw.orderItems && Array.isArray(raw.orderItems) ? raw.orderItems : []);
+
+      const normalizedItems = (itemsRaw.map(normalizeItem).filter(Boolean));
+
+      // compute subtotal from items (safer)
+      const computedSubtotal = normalizedItems.reduce((s, it) => s + Number(it.lineTotal || (it.unitPrice * it.quantity) || 0), 0);
+      const resolveEmail = (obj) => {
+        if (!obj) return '';
+        // phổ biến tên trường email ở nhiều shape khác nhau
+        return obj.email ||
+          obj.emailAddress ||
+          obj.customerEmail ||
+          obj.buyerEmail ||
+          obj.payerEmail ||
+          obj.payer_email ||
+          obj.contact?.email ||
+          obj.billing?.email ||
+          obj.shipping?.email ||
+          obj.customer?.email ||
+          obj.user?.email ||
+          // MoMo thường trả extraData (string) — thử parse nếu có
+          (typeof obj.extraData === 'string' ? (() => {
+            try {
+              const parsed = JSON.parse(decodeURIComponent(obj.extraData || '') || obj.extraData);
+              return parsed?.email || parsed?.buyerEmail || parsed?.payerEmail || '';
+            } catch { return ''; }
+          })() : '') ||
+          '';
+      };
+      // build normalized order
+      const normalized = {
+        orderNumber: raw.orderNumber || raw.id || raw.orderId || raw.order_number || `ANT${Date.now().toString().slice(-8)}`,
+        orderDate: raw.orderDate || raw.date || raw.createdAt || raw.created_at || new Date().toISOString(),
+        items: normalizedItems,
+        subtotal: Number(raw.subtotal ?? raw.sub_total ?? computedSubtotal) || computedSubtotal,
+        discount: Number(raw.discount ?? raw.promoDiscount ?? 0) || 0,
+        shipping: Number(raw.shipping ?? raw.shippingFee ?? raw.shipping_cost ?? 0) || 0,
+        total: Number(raw.total ?? raw.totalAmount ?? raw.amount ?? (computedSubtotal - (raw.discount || 0) + (raw.shipping || 0))) || Math.max(0, computedSubtotal - Number(raw.discount ?? 0) + Number(raw.shipping ?? 0)),
+        promoCode: raw.promoCode ?? raw.promo ?? '',
+        paymentMethod: normalizePaymentMethodKey(
           raw.paymentMethod ||
           raw.payment_method ||
           raw.payment ||
-          (raw.customer && raw.customer.paymentMethod) ||
-          'cod',
-        paymentStatus:
-          raw.paymentStatus ||
-          raw.payment_status ||
-          raw.status ||
-          '',
-
+          (raw.customer && (raw.customer.paymentMethod || raw.customer.payment_method)) ||
+          'cod'
+        ), paymentStatus: raw.paymentStatus || raw.payment_status || raw.status || '',
         customer: {
-          fullName:
-            (raw.customer && (raw.customer.fullName || raw.customer.name)) ||
-            raw.customer ||
-            raw.customerName ||
-            raw.customer_fullName ||
-            'Khách hàng',
-          phone:
-            (raw.customer && (raw.customer.phone || raw.customer.phoneNumber)) ||
-            raw.phone ||
-            raw.customerPhone ||
-            '',
-          email:
-            (raw.customer && raw.customer.email) ||
-            raw.email ||
-            '',
-          address:
-            (raw.customer && (raw.customer.address || raw.customer.detailedAddress)) ||
-            raw.address ||
-            raw.shippingAddress ||
-            '',
-          ward: (raw.customer && raw.customer.ward) || raw.ward || '',
-          district: (raw.customer && raw.customer.district) || raw.district || '',
-          city: (raw.customer && raw.customer.city) || raw.city || '',
-          note: (raw.customer && raw.customer.note) || raw.note || ''
+          fullName: (raw.customer && (raw.customer.fullName || raw.customer.name)) || raw.customerName || raw.recipientName || raw.buyerName || 'Khách hàng',
+          phone: (raw.customer && (raw.customer.phone || raw.customer.phoneNumber)) || raw.phone || raw.recipientPhone || '',
+          email: resolveEmail(raw) || resolveEmail(raw.customer) || resolveEmail(raw.raw) || ''
         },
-
         raw
       };
-
+      console.log('DEBUG_ORDER_NORMALIZED', {
+        normalized,
+        rawPreview: raw,
+        displayOrderNumber: extractDisplayOrderNumber(normalized) || normalized.orderNumber,
+        customerAddress: normalized.customer?.address,
+        itemsPreview: normalized.items.map(i => ({ name: i.name, image: i.image, qty: i.quantity }))
+      });
 
       // If subtotal is zero but items available, compute subtotal from items
       if ((!normalized.subtotal || normalized.subtotal === 0) && normalized.items.length > 0) {
@@ -223,10 +315,36 @@ export default function OrderSuccessPage() {
     };
     return icons[method] || '💰';
   };
-  const paymentMethod = orderData.paymentMethod
-    || orderData.raw?.paymentMethod
-    || orderData.customer?.paymentMethod
-    || 'cod';
+  const getPaidAmount = (order) => {
+    if (!order) return 0;
+    const candidates = [
+      order.paidAmount,
+      order.amountPaid,
+      order.paymentAmount,
+      order.paid,
+      order.amount,
+      order.total,
+      order.raw?.amount,
+      order.raw?.paidAmount,
+      order.raw?.paymentAmount,
+      order.raw?.amountPaid,
+      order.raw?.totalAmount,
+    ];
+    for (const c of candidates) {
+      const n = Number(c);
+      if (!Number.isNaN(n) && n > 0) return Math.round(n);
+    }
+    return Math.round(order.total || 0);
+  };
+
+  const paymentMethod = normalizePaymentMethodKey(
+    orderData.paymentMethod ||
+    orderData.raw?.paymentMethod ||
+    orderData.raw?.payment_method ||
+    orderData.customer?.paymentMethod ||
+    orderData.customer?.payment_method ||
+    'cod'
+  );
   return (
     <Layout>
       <div className="order-success-page">
@@ -283,6 +401,7 @@ export default function OrderSuccessPage() {
 
           <div className="order-sections">
             <div className="main-content">
+              {/* --- PHƯƠNG THỨC THANH TOÁN (dynamic) --- */}
               <div className="info-card">
                 <div className="card-header">
                   <h2>Phương thức thanh toán</h2>
@@ -295,7 +414,7 @@ export default function OrderSuccessPage() {
                     <div className="payment-details">
                       <h4>{getPaymentMethodName(paymentMethod)}</h4>
                       {paymentMethod === 'cod' ? (
-                        <p>Vui lòng chuẩn bị số tiền {orderData.total.toLocaleString()}₫ khi nhận hàng</p>
+                        <p>Vui lòng chuẩn bị số tiền {(orderData.total || 0).toLocaleString()}₫ khi nhận hàng</p>
                       ) : paymentConfirmed ? (
                         <p className="payment-confirmed">✓ Đã xác nhận thanh toán thành công</p>
                       ) : (
@@ -307,17 +426,38 @@ export default function OrderSuccessPage() {
               </div>
 
 
+
               <div className="info-card">
                 <div className="card-header">
-                  <h2>Sản phẩm đã đặt</h2>
+                  <h2>CHI TIẾT ĐƠN HÀNG</h2>
+                </div>
+                <div className="info-card">
+                  <div className="card-header">
+                    <h2>Thông tin người nhận</h2>
+                  </div>
+                  <div className="card-body">
+                    <div className="recipient-grid">
+                      <div><strong>Người nhận:</strong></div><div>{orderData.customer.fullName || '—'}</div>
+                      <div><strong>Số điện thoại:</strong></div><div>{orderData.customer.phone || '—'}</div>
+                      <div><strong>Địa chỉ:</strong></div><div>{orderData.customer.detailedAddress || orderData.raw?.shippingAddress ||
+                        orderData.customer.shippingAddress || orderData.customer.address ||
+                        orderData.raw?.address || orderData.raw?.recipientAddress
+                        || '—'}</div>
+                      <div><strong>Email:</strong></div><div>{orderData.customer.email || orderData.email ||
+                        orderData.raw?.email || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="card-header">
+                  <h2>SẢN PHẨM ĐÃ ĐẶT</h2>
                   <span className="item-count">{orderData.items.length} sản phẩm</span>
                 </div>
                 <div className="card-body">
                   <div className="product-list">
                     {(Array.isArray(orderData.items) ? orderData.items : []).map((item, index) => {
-                      const qty = Number(item.quantity ?? item.qty ?? 1);
-                      const unitPrice = Number(item.price ?? item.unitPrice ?? item.amount ?? 0);
-                      const total = unitPrice * qty;
+                      const qty = Number(item.quantity ?? 1);
+                      const unitPrice = Number(item.unitPrice ?? item.price ?? 0) || 0;
+                      const lineTotal = Number(item.lineTotal ?? unitPrice * qty) || unitPrice * qty;
                       return (
                         <div key={index} className="product-item">
                           <div className="product-image-wrapper">
@@ -340,7 +480,7 @@ export default function OrderSuccessPage() {
                             )}
                             <div className="product-pricing">
                               <span className="product-quantity">x{qty}</span>
-                              <span className="product-price">{total.toLocaleString()}₫</span>
+                              <span className="product-price">{lineTotal.toLocaleString()}₫</span>
                             </div>
                           </div>
                         </div>
@@ -358,10 +498,10 @@ export default function OrderSuccessPage() {
                 <div className="card-body">
                   <div className="payment-display">
                     <span className="payment-icon-large">
-                      {getPaymentMethodIcon(orderData.customer.paymentMethod)}
+                      {getPaymentMethodIcon(paymentMethod)}
                     </span>
                     <div className="payment-details">
-                      <h4>{getPaymentMethodName(orderData.customer.paymentMethod)}</h4>
+                      <h4>{getPaymentMethodIcon(paymentMethod)}</h4>
                       {orderData.customer.paymentMethod === 'cod' ? (
                         <p>Vui lòng chuẩn bị số tiền {orderData.total.toLocaleString()}₫ khi nhận hàng</p>
                       ) : paymentConfirmed ? (
@@ -384,7 +524,7 @@ export default function OrderSuccessPage() {
                   <div className="summary-list">
                     <div className="summary-item">
                       <span className="summary-label">Tạm tính</span>
-                      <span className="summary-value">{orderData.subtotal.toLocaleString()}₫</span>
+                      <span className="summary-value">{(orderData.subtotal || 0).toLocaleString()}₫</span>
                     </div>
                     {orderData.discount > 0 && (
                       <div className="summary-item discount-item">
@@ -407,7 +547,7 @@ export default function OrderSuccessPage() {
                     <div className="summary-divider"></div>
                     <div className="summary-item total-item">
                       <span className="summary-label">Tổng cộng</span>
-                      <span className="summary-value total-value">{orderData.total.toLocaleString()}₫</span>
+                      <span className="summary-value total-value">{(orderData.total || 0).toLocaleString()}₫</span>
                     </div>
                   </div>
                 </div>
@@ -428,14 +568,14 @@ export default function OrderSuccessPage() {
                   <span className="support-icon">📞</span>
                   <div className="support-details">
                     <span className="support-label">Hotline</span>
-                    <a href="tel:0974945488" className="support-link">0974 945 488</a>
+                    <a href="tel:0974945488" className="support-link">0363 537 601</a>
                   </div>
                 </div>
                 <div className="support-item">
                   <span className="support-icon">✉️</span>
                   <div className="support-details">
                     <span className="support-label">Email</span>
-                    <a href="mailto:saleonline@anta.com" className="support-link">saleonline@anta.com</a>
+                    <a href="mailto:saleonline@anta.com" className="support-link">nguyenbavien.26092005@gmail.com</a>
                   </div>
                 </div>
               </div>

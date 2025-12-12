@@ -20,26 +20,42 @@ export const OrderProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+ 
   useEffect(() => {
     if (isAuthenticated) {
       loadOrders();
     } else {
       setOrders([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  const loadOrders = async () => {
+  const loadOrders = async (params = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await orderService.getOrders();
-      setOrders(data);
+      const data = await orderService.getOrders(params);
+      // normalize possible shapes: array | { data: [] } | { orders: [] } | { ..someKey: [] }
+      let arr = [];
+      if (Array.isArray(data)) arr = data;
+      else if (data && Array.isArray(data.data)) arr = data.data;
+      else if (data && Array.isArray(data.orders)) arr = data.orders;
+      else if (data) {
+        for (const k of Object.keys(data)) {
+          if (Array.isArray(data[k])) { arr = data[k]; break; }
+        }
+      }
+      if (!Array.isArray(arr)) {
+        console.warn('[OrderContext] getOrders returned unexpected shape:', data);
+        arr = [];
+      }
+      setOrders(arr);
       if (dataSync) {
-        dataSync.emitOrdersUpdate({ action: 'load', orders: data });
+        dataSync.emitOrdersUpdate({ action: 'load', orders: arr });
       }
     } catch (err) {
       console.error('Error loading orders:', err);
-      setError(err.message);
+      setError(err?.message || String(err));
       setOrders([]);
     } finally {
       setLoading(false);
@@ -90,23 +106,24 @@ export const OrderProvider = ({ children }) => {
 
   const getOrdersByStatus = (status) => {
     if (!status || status === 'all') return orders;
-    
     return orders.filter(order => {
-      const orderStatus = order.status.toLowerCase();
+      const rawStatus = (order && (order.status || order.state || order.statusText || '')) || '';
+      const orderStatus = String(rawStatus).toLowerCase();
       switch (status.toLowerCase()) {
         case 'processing':
-          return orderStatus === 'processing' || orderStatus === 'đang xử lý';
+          return orderStatus.includes('process') || orderStatus.includes('đang xử lý');
         case 'shipping':
-          return orderStatus === 'shipping' || orderStatus === 'đang giao';
+          return orderStatus.includes('ship') || orderStatus.includes('đang giao');
         case 'delivered':
-          return orderStatus === 'delivered' || orderStatus === 'đã giao';
+          return orderStatus.includes('deliver') || orderStatus.includes('đã giao');
         case 'cancelled':
-          return orderStatus === 'cancelled' || orderStatus === 'đã hủy';
+          return orderStatus.includes('cancel') || orderStatus.includes('hủy');
         default:
           return true;
       }
     });
   };
+
 
   const value = {
     orders,

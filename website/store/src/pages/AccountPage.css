@@ -81,7 +81,7 @@
   font-size: 40px;
   font-weight: 900;
   margin-bottom: 16px;
-  box-shadow: 0 8px 24px rgba(215, 0, 16, 0.3);
+  box-shadow: 0 8px 24px rgba(229, 229, 229, 0.3);
   position: relative;
 }
 
@@ -115,14 +115,14 @@
 .user-name {
   font-size: 20px;
   font-weight: 800;
-  color: #1a1a1a;
+  color: #fffafa;
   margin-bottom: 6px;
   letter-spacing: -0.3px;
 }
 
 .user-email {
   font-size: 13px;
-  color: #6b7280;
+  color: #ffffff;
   margin: 0;
   word-break: break-word;
   font-weight: 500;
@@ -1694,11 +1694,11 @@
 .modal-body input,
 .modal-body textarea,
 .modal-body select {
-  color: #111 !important;          /* chữ đậm */
+  color: #151414 !important;          /* chữ đậm */
   background-color: #fff !important; /* nền trắng */
 }
 
 .modal-body input::placeholder,
 .modal-body textarea::placeholder {
-  color: #888 !important;          /* placeholder xám */
+  color: #000000 !important;          /* placeholder xám */
 }

@@ -1,8 +1,30 @@
+//src/pages/AccountPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components';
 import { useAuth, useCart, useOrders, useWishlist, useUserData } from '../contexts';
 import './AccountPage.css';
+// ---- helper utilities (add near top of file) ----
+const safeCount = (order) => {
+  if (!order) return 0;
+  if (Array.isArray(order.items)) return order.items.length;
+  if (Array.isArray(order.products)) return order.products.length;
+  if (Array.isArray(order.orderItems)) return order.orderItems.length;
+  return Number(order.totalItems ?? order.itemCount ?? 0);
+};
+
+const safeTotal = (order) => {
+  const v = order?.total ?? order?.totalAmount ?? order?.amount ?? 0;
+  return Number(v || 0);
+};
+
+const resolveImageUrl = (img) => {
+  if (!img) return 'https://via.placeholder.com/300';
+  if (typeof img === 'string') return img;
+  if (Array.isArray(img) && img.length) return resolveImageUrl(img[0]);
+  if (typeof img === 'object') return img.url || img.src || img.thumbnail || img.imageUrl || '';
+  return 'https://via.placeholder.com/300';
+};
 
 export default function AccountPage() {
   const navigate = useNavigate();
@@ -246,14 +268,17 @@ export default function AccountPage() {
 
   const handleReorder = async (order) => {
     try {
-      if (order.products && order.products.length > 0) {
-        order.products.forEach(product => {
+      const list = Array.isArray(order.products) && order.products.length ? order.products
+        : Array.isArray(order.items) && order.items.length ? order.items
+          : [];
+      if (list.length > 0) {
+        list.forEach(product => {
           addToCart({
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            image: product.image,
-            quantity: product.quantity || 1
+            id: product.id ?? product.productId ?? product.product_id,
+            name: product.name ?? product.productName ?? '',
+            price: product.price ?? product.unitPrice ?? 0,
+            image: product.image ?? product.thumbnail ?? '',
+            quantity: product.quantity ?? product.qty ?? 1
           });
         });
         alert('Đã thêm sản phẩm vào giỏ hàng!');
@@ -427,9 +452,9 @@ export default function AccountPage() {
                   <div className="order-meta">
                     <span>{new Date(order.date || order.createdAt).toLocaleDateString('vi-VN')}</span>
                     <span>•</span>
-                    <span>{order.items || order.totalItems} sản phẩm</span>
+                    <span>{safeCount(order)} sản phẩm</span>
                   </div>
-                  <div className="order-price">{(order.total || order.totalAmount).toLocaleString()}₫</div>
+                  <div className="order-price">{safeTotal(order).toLocaleString()}₫</div>
                 </div>
               </div>
             ))}
@@ -473,7 +498,7 @@ export default function AccountPage() {
                 </div>
                 <div className="order-card-body">
                   <div className="order-product-info">
-                    <img src={order.image || 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300'} alt="Sản phẩm" className="order-img" />
+                    <img src={resolveImageUrl(order.image) || 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300'} alt="Sản phẩm" className="order-img" />
                     <div className="order-details">
                       <div className="order-quantity">{order.items || order.totalItems} sản phẩm</div>
                       <div className="order-amount">Tổng cộng: <strong>{(order.total || order.totalAmount).toLocaleString()}₫</strong></div>

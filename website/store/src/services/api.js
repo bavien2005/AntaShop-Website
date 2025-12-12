@@ -99,21 +99,55 @@ export const orderService = {
   // Update payment status on order-service (best-effort). Backend endpoint may differ; adjust if needed.
   updatePayment: async (orderId, status) => {
     try {
-      // try /api/orders/{orderId}/payment-status/{status}
+      // Try existing API patterns first (existing code)
       const res = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/payment-status/${encodeURIComponent(status)}`);
       return res.data;
     } catch (err) {
-      // fallback: try alternate path
+      // fallback: try other endpoints used by the backend
       try {
         const res2 = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/payment/${encodeURIComponent(status)}`);
         return res2.data;
       } catch (err2) {
+        // final fallback: use PUT /{id}/paid when status indicates 'SUCCESS'/'PAID'
+        try {
+          if (['SUCCESS', 'PAID', 'COMPLETED'].includes((status || '').toString().toUpperCase())) {
+            const r3 = await orderApi.put(`/api/orders/${encodeURIComponent(orderId)}/paid`);
+            return r3.data;
+          }
+        } catch (err3) { /* ignore and throw below */ }
         const msg = err2?.response?.data?.message || err2?.message || "updatePayment failed";
         throw new Error(msg);
       }
     }
   },
-
+  markPaid: async (orderId) => {
+    try {
+      const res = await orderApi.put(`/api/orders/${encodeURIComponent(orderId)}/paid`);
+      // some controllers return 204 No Content - just return true
+      return res.data ?? true;
+    } catch (e) {
+      const msg = e?.response?.data?.message || e?.message || 'markPaid failed';
+      throw new Error(msg);
+    }
+  },
+ getOrders: async (params = {}) => {
+    try {
+      const res = await orderApi.get('/api/orders', { params });
+      const data = res.data;
+      // support various shapes: array, { data: [] }, { orders: [] }
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.data)) return data.data;
+      if (data && Array.isArray(data.orders)) return data.orders;
+      // fallback: if object with keys and one of them is an array
+      for (const k of Object.keys(data || {})) {
+        if (Array.isArray(data[k])) return data[k];
+      }
+      return [];
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "getOrders failed";
+      throw new Error(msg);
+    }
+  },
   cancelOrder: async (orderId) => {
     try {
       const res = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/cancel`);
