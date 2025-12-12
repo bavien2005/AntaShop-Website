@@ -7,7 +7,7 @@ import { useDataSync } from './DataSyncContext';
 const OrderContext = createContext();
 
 export const OrderProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const dataSync = useDataSync ? (() => {
     try {
       return useDataSync();
@@ -20,15 +20,15 @@ export const OrderProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
- 
+
   useEffect(() => {
-    if (isAuthenticated) {
-      loadOrders();
+    if (isAuthenticated && user?.id) {
+      loadOrders({ userId: user.id }); // ✅ truyền userId
     } else {
       setOrders([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   const loadOrders = async (params = {}) => {
     setLoading(true);

@@ -75,6 +75,13 @@ export default function OrderSuccessPage() {
         raw: summary.raw || {}
       });
       setPaymentConfirmed(Boolean(location.state?.paymentConfirmed || summary.paymentConfirmed));
+      setShowAnimation(true);          // ✅ FIX biến mất
+      refreshOrders?.();               // ✅ optional
+      if (!hasShownToast.current) {
+        showSuccess?.('Đặt hàng thành công!');
+        hasShownToast.current = true;
+      }
+
       // skip the rest of normalization
       return;
     }
@@ -196,8 +203,7 @@ export default function OrderSuccessPage() {
       };
       // build normalized order
       const normalized = {
-        orderNumber: raw.orderNumber || raw.id || raw.orderId || raw.order_number || `ANT${Date.now().toString().slice(-8)}`,
-        orderDate: raw.orderDate || raw.date || raw.createdAt || raw.created_at || new Date().toISOString(),
+        orderNumber: raw.orderNumber || raw.order_number || raw.orderNo || raw.order_no || '', orderDate: raw.orderDate || raw.date || raw.createdAt || raw.created_at || new Date().toISOString(),
         items: normalizedItems,
         subtotal: Number(raw.subtotal ?? raw.sub_total ?? computedSubtotal) || computedSubtotal,
         discount: Number(raw.discount ?? raw.promoDiscount ?? 0) || 0,
@@ -236,6 +242,25 @@ export default function OrderSuccessPage() {
       }
 
       setOrderData(normalized);
+
+      // --- store latest order to localStorage for quick AccountPage display (fallback) ---
+      try {
+        const KEY = STORAGE_KEYS?.USER_ORDERS || 'anta_user_orders';
+        const existing = JSON.parse(localStorage.getItem(KEY) || '[]');
+
+        // unique by display order number (or id/orderNumber)
+        const newKey = extractDisplayOrderNumber(normalized) || String(normalized.orderNumber || normalized.raw?.id || '');
+        const next = [
+          normalized,
+          ...existing.filter(o => {
+            const ok = extractDisplayOrderNumber(o) || String(o?.orderNumber || o?.raw?.id || o?.id || '');
+            return ok !== newKey;
+          })
+        ].slice(0, 50);
+
+        localStorage.setItem(KEY, JSON.stringify(next));
+      } catch { }
+
 
       // paymentConfirmed: location.state explicit OR raw fields indicating paid
       const autoPaid = Boolean(
@@ -360,7 +385,7 @@ export default function OrderSuccessPage() {
             <p className="success-subtitle">Cảm ơn bạn đã tin tưởng và mua sắm tại ANTA Việt Nam</p>
             <div className="order-number-display">
               <span className="order-label">Mã đơn hàng:</span>
-              <span className="order-value">{fullPartnerOrderId || orderData.orderNumber || 'N/A'}</span>
+              <span className="order-value">{orderData.orderNumber || 'N/A'}</span>
             </div>
 
           </div>
