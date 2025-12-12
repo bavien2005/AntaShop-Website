@@ -294,13 +294,18 @@
 }
 
 .order-number-label {
-  font-weight: 600;
+  display: grid;
+  gap: 6px;
+  font-size: 20px;
+  opacity: 0.95;
+  color: #1a1a1a;
 }
 
 .order-number-value {
-  font-weight: 800;
-  color: #1a1a1a;
+  font-size: 20px;
+  color: #a11818;
   font-family: 'Courier New', monospace;
+  margin-top: 1px;
 }
 
 .order-date {
@@ -433,7 +438,7 @@
 
 .product-order-price {
   font-size: 14px;
-  color: #6B6B6B;
+  color: #000000;
   margin: 0;
   font-weight: 500;
 }
@@ -514,6 +519,8 @@
 .product-actions-section {
   display: flex;
   justify-content: center;
+  color: #1a1a1a;
+  font-size: 20px;
 }
 
 .arrange-shipping-button {
@@ -670,4 +677,50 @@
     width: 100%;
     justify-content: center;
   }
+}
+.order-recipient-inline{
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  font-size: 17px;
+  opacity: 0.95;
+  color: #1a1a1a;
+}
+
+.recipient-line strong{
+  font-weight: 700;
+}
+
+.recipient-line span{
+  opacity: 0.9;
+}
+
+.order-action-group{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.cancel-order-button{
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid #d43e3e;
+  background:#fff;
+  color:#c0392b;
+  font-weight:700;
+}
+
+.cancel-order-button.is-refund{
+  opacity:.8;
+  cursor:not-allowed;
+}
+
+.delete-order-button{
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  background:#db0d0d;
+  font-weight:700;
 }

@@ -1,9 +1,134 @@
+//src/pages/AccountPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components';
 import { useAuth, useCart, useOrders, useWishlist, useUserData } from '../contexts';
 import './AccountPage.css';
+import { productService } from '../services/api';
+import { STORAGE_KEYS } from '../constants';
+// ---- helper utilities (add near top of file) ----
+const safeCount = (order) => {
+  if (!order) return 0;
+  if (Array.isArray(order.items)) return order.items.length;
+  if (Array.isArray(order.products)) return order.products.length;
+  if (Array.isArray(order.orderItems)) return order.orderItems.length;
+  return Number(order.totalItems ?? order.itemCount ?? 0);
+};
 
+const safeTotal = (order) => {
+  const v = order?.total ?? order?.totalAmount ?? order?.amount ?? 0;
+  return Number(v || 0);
+};
+
+const resolveImageUrl = (img) => {
+  if (!img) return 'https://via.placeholder.com/300';
+  if (typeof img === 'string') return img;
+  if (Array.isArray(img) && img.length) return resolveImageUrl(img[0]);
+  if (typeof img === 'object') return img.url || img.src || img.thumbnail || img.imageUrl || '';
+  return 'https://via.placeholder.com/300';
+};
+
+const pickOrderItemsArray = (o) => {
+  if (!o) return [];
+  if (Array.isArray(o.products)) return o.products;
+  if (Array.isArray(o.items)) return o.items;
+  if (Array.isArray(o.orderItems)) return o.orderItems;
+  if (Array.isArray(o.itemsOrdered)) return o.itemsOrdered;
+  if (Array.isArray(o.line_items)) return o.line_items;
+  if (Array.isArray(o.order_lines)) return o.order_lines;
+  return [];
+};
+const getOrderThumbnail = (order) => {
+  if (!order) return 'https://via.placeholder.com/300';
+
+  // ưu tiên field ảnh có sẵn
+  const direct = order.image || order.thumbnail || order.productImage;
+  if (direct) return resolveImageUrl(direct);
+
+  // fallback: lấy từ item đầu tiên trong đơn
+  const items = pickOrderItemsArray(order);
+  const first = items?.[0];
+
+  const fromItem =
+    first?.image ||
+    first?.thumbnail ||
+    first?.productImage ||
+    first?.product?.thumbnail ||
+    first?.product?.image ||
+    first?.product?.images;
+
+  return resolveImageUrl(fromItem) || 'https://via.placeholder.com/300';
+};
+
+const normalizeOrderLine = (it, fallbackImage = '') => {
+  if (!it) return null;
+
+  const attrs = it.attributes || it.variantAttributes || it.variant?.attributes || {};
+  const size = it.size || it.variantSize || attrs.size || attrs.SIZE || '';
+  const color = it.color || it.variantColor || attrs.color || attrs.COLOR || '';
+
+  const quantity = Number(it.quantity ?? it.qty ?? it.count ?? 1) || 1;
+  const unitPrice = Number(it.unitPrice ?? it.price ?? it.amount ?? it.unit_price ?? 0) || 0;
+  const lineTotal = Number(it.lineTotal ?? it.line_total ?? (unitPrice * quantity)) || (unitPrice * quantity);
+
+  const productId = it.productId ?? it.product_id ?? it.product?.id ?? it.id ?? null;
+  const variantId = it.variantId ?? it.variant_id ?? it.variant?.id ?? null;
+
+  const name = it.name || it.productName || it.title || it.product?.name || '';
+  const image = resolveImageUrl(it.image || it.thumbnail || it.productImage || it.product?.image || it.product?.thumbnail || fallbackImage);
+
+  return {
+    raw: it,
+    productId,
+    variantId,
+    name,
+    image,
+    size,
+    color,
+    quantity,
+    unitPrice,
+    lineTotal
+  };
+};
+
+const normalizeOrderDetail = (detail, fallbackSummary = null) => {
+  const itemsRaw = pickOrderItemsArray(detail);
+  const fallbackImg = fallbackSummary?.image || detail?.image || '';
+  const lines = itemsRaw.map(it => normalizeOrderLine(it, fallbackImg)).filter(Boolean);
+
+  const total = Number(detail?.total ?? detail?.totalAmount ?? detail?.amount ?? 0) || 0;
+  const createdAt = detail?.date || detail?.createdAt || detail?.created_at || null;
+  const status = detail?.status || detail?.state || detail?.statusText || '';
+
+  return {
+    ...detail,
+    status,
+    total,
+    createdAt,
+    _lines: lines
+  };
+};
+
+// (best-effort) fill missing name/image from product-service
+const enrichLinesFromProductService = async (lines = []) => {
+  const out = await Promise.all(lines.map(async (l) => {
+    if (!l) return l;
+    if ((!l.name || !l.image || l.image.includes('via.placeholder')) && l.productId != null) {
+      try {
+        const p = await productService.getProduct(l.productId);
+        return {
+          ...l,
+          name: l.name || p?.name || p?.productName || `Sản phẩm #${l.productId}`,
+          image: (l.image && !l.image.includes('via.placeholder')) ? l.image : resolveImageUrl(p?.thumbnail || p?.image || p?.images)
+        };
+      } catch {
+        return l;
+      }
+    }
+    return l;
+  }));
+  return out;
+};
 export default function AccountPage() {
   const navigate = useNavigate();
   const { section } = useParams();
@@ -22,6 +147,11 @@ export default function AccountPage() {
     deleteAddress,
     setDefaultAddress
   } = useUserData();
+  const goTab = (tab) => {
+    setActiveTab(tab);
+    // overview dùng /account, các tab khác dùng /account/{tab}
+    navigate(tab === 'overview' ? '/account' : `/account/${tab}`);
+  };
 
   const [activeTab, setActiveTab] = useState(section || 'overview');
   const [loading, setLoading] = useState(false);
@@ -146,17 +276,19 @@ export default function AccountPage() {
     if (address) {
       setEditingAddress(address);
       setAddressForm({
-        recipientName: address.recipientName,
-        phone: address.phone,
-        address: address.address,
-        isDefault: address.isDefault
+        recipientName: address.recipientName ?? '',
+        phoneNumber: address.phoneNumber ?? address.phone ?? '',
+        detailedAddress: address.detailedAddress ?? address.address ?? '',
+        country: address.country ?? 'Vietnam',
+        isDefault: Boolean(address.isDefault)
       });
     } else {
       setEditingAddress(null);
       setAddressForm({
         recipientName: '',
-        phone: '',
-        address: '',
+        phoneNumber: '',
+        detailedAddress: '',
+        country: 'Vietnam',
         isDefault: false
       });
     }
@@ -168,8 +300,9 @@ export default function AccountPage() {
     setEditingAddress(null);
     setAddressForm({
       recipientName: '',
-      phone: '',
-      address: '',
+      phoneNumber: '',
+      detailedAddress: '',
+      country: 'Vietnam',
       isDefault: false
     });
   };
@@ -234,23 +367,29 @@ export default function AccountPage() {
   const handleViewOrderDetail = async (order) => {
     try {
       const orderDetail = await getOrder(order.id);
-      setSelectedOrder(orderDetail);
+      let normalized = normalizeOrderDetail(orderDetail, order);
+      // best-effort: fill missing name/image
+      normalized._lines = await enrichLinesFromProductService(normalized._lines || []);
+      setSelectedOrder(normalized);
       setShowOrderDetailModal(true);
     } catch (error) {
-      alert('Không thể tải chi tiết đơn hàng: ' + error.message);
+      alert('Không thể tải chi tiết đơn hàng: ' + (error?.message || String(error)));
     }
   };
 
   const handleReorder = async (order) => {
     try {
-      if (order.products && order.products.length > 0) {
-        order.products.forEach(product => {
+      const list = Array.isArray(order.products) && order.products.length ? order.products
+        : Array.isArray(order.items) && order.items.length ? order.items
+          : [];
+      if (list.length > 0) {
+        list.forEach(product => {
           addToCart({
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            image: product.image,
-            quantity: product.quantity || 1
+            id: product.id ?? product.productId ?? product.product_id,
+            name: product.name ?? product.productName ?? '',
+            price: product.price ?? product.unitPrice ?? 0,
+            image: product.image ?? product.thumbnail ?? '',
+            quantity: product.quantity ?? product.qty ?? 1
           });
         });
         alert('Đã thêm sản phẩm vào giỏ hàng!');
@@ -307,7 +446,7 @@ export default function AccountPage() {
   };
 
   const canCancelOrder = (order) => {
-    const status = order.status.toLowerCase();
+    const status = String(order?.status || '').toLowerCase();
     return status === 'đang xử lý' || status === 'processing' || status === 'chờ xử lý';
   };
 
@@ -322,25 +461,25 @@ export default function AccountPage() {
   };
 
 
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'Đã giao':
-      case 'DELIVERED':
-        return 'delivered';
-      case 'Đang giao':
-      case 'SHIPPING':
-        return 'shipping';
-      case 'Đang xử lý':
-      case 'PROCESSING':
-        return 'processing';
-      case 'Đã hủy':
-      case 'CANCELLED':
-        return 'cancelled';
-      default:
-        return '';
-    }
-  };
+ const getStatusClass = (status) => {
+  const s = String(status || '').trim().toLowerCase();
 
+  // ✅ bạn muốn xanh hết như DELIVERED -> map các trạng thái "lạ" về delivered
+  if (
+    s.includes('delivered') ||
+    s.includes('đã giao') ||
+    s.includes('pending_payment') ||
+    s.includes('pending payment') ||
+    s.includes('chờ thanh toán')
+  ) return 'delivered';
+
+  if (s.includes('shipping') || s.includes('shipped') || s.includes('đang giao')) return 'shipping';
+  if (s.includes('processing') || s.includes('confirmed') || s.includes('đang xử lý') || s.includes('chờ xử lý')) return 'processing';
+  if (s.includes('cancel') || s.includes('đã hủy')) return 'cancelled';
+
+  // ✅ mặc định cũng xanh
+  return 'delivered';
+};
   const getFilteredOrders = () => {
     return getOrdersByStatus(orderFilter);
   };
@@ -388,7 +527,7 @@ export default function AccountPage() {
       </div>
 
       <div className="account-stats">
-        <div className="stat-box" onClick={() => setActiveTab('orders')}>
+        <div className="stat-box" onClick={() => goTab('orders')}>
           <div className="stat-number">{totalOrders}</div>
           <div className="stat-text">Đơn hàng</div>
         </div>
@@ -405,16 +544,20 @@ export default function AccountPage() {
       <div className="recent-section">
         <div className="section-title">
           <h3>Đơn hàng gần đây</h3>
-          <button className="link-btn" onClick={() => setActiveTab('orders')}>Xem tất cả →</button>
+          <button className="link-btn" onClick={() => goTab('orders')}>Xem tất cả →</button>
         </div>
         {orders.length > 0 ? (
           <div className="recent-orders">
             {orders.slice(0, 2).map((order) => (
-              <div key={order.id} className="recent-order-item" onClick={() => handleViewOrderDetail(order)}>
+              <div key={order.id} cla
+                ssName="recent-order-item" onClick={() => handleViewOrderDetail(order)}>
                 <div className="order-thumbnail">
-                  <img src={order.image || 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300'} alt="Sản phẩm" />
+                  <img
+                    src={getOrderThumbnail(order)}
+                    alt="Sản phẩm"
+                    onError={(e) => { e.currentTarget.src = 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300' }} />
                 </div>
-                <div className="order-content">
+                <div className="order-content" color='#0000'>
                   <div className="order-row">
                     <span className="order-number">#{order.id}</span>
                     <span className={`status-badge status-${getStatusClass(order.status)}`}>
@@ -424,9 +567,9 @@ export default function AccountPage() {
                   <div className="order-meta">
                     <span>{new Date(order.date || order.createdAt).toLocaleDateString('vi-VN')}</span>
                     <span>•</span>
-                    <span>{order.items || order.totalItems} sản phẩm</span>
+                    <span>{safeCount(order)} sản phẩm</span>
                   </div>
-                  <div className="order-price">{(order.total || order.totalAmount).toLocaleString()}₫</div>
+                  <div className="order-price">{safeTotal(order).toLocaleString()}₫</div>
                 </div>
               </div>
             ))}
@@ -470,9 +613,13 @@ export default function AccountPage() {
                 </div>
                 <div className="order-card-body">
                   <div className="order-product-info">
-                    <img src={order.image || 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300'} alt="Sản phẩm" className="order-img" />
+                    <img
+                      src={getOrderThumbnail(order)}
+                      alt="Sản phẩm"
+                      className="order-img"
+                      onError={(e) => { e.currentTarget.src = 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300' }} />
                     <div className="order-details">
-                      <div className="order-quantity">{order.items || order.totalItems} sản phẩm</div>
+                      <div className="order-quantity">{safeCount(order)} sản phẩm</div>
                       <div className="order-amount">Tổng cộng: <strong>{(order.total || order.totalAmount).toLocaleString()}₫</strong></div>
                     </div>
                   </div>
@@ -539,7 +686,7 @@ export default function AccountPage() {
         </div>
       ) : (
         <div className="empty-state">
-          <p>Bạn chưa có sản ph��m yêu thích nào</p>
+          <p>Bạn chưa có sản phẩm yêu thích nào</p>
         </div>
       )}
     </div>
@@ -729,7 +876,7 @@ export default function AccountPage() {
                 <nav className="menu-nav">
                   <button
                     className={`menu-link ${activeTab === 'overview' ? 'is-active' : ''}`}
-                    onClick={() => setActiveTab('overview')}
+                    onClick={() => goTab('overview')}
                   >
                     <svg className="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -739,7 +886,7 @@ export default function AccountPage() {
                   </button>
                   <button
                     className={`menu-link ${activeTab === 'orders' ? 'is-active' : ''}`}
-                    onClick={() => setActiveTab('orders')}
+                    onClick={() => goTab('orders')}
                   >
                     <svg className="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
@@ -748,7 +895,7 @@ export default function AccountPage() {
                   </button>
                   <button
                     className={`menu-link ${activeTab === 'wishlist' ? 'is-active' : ''}`}
-                    onClick={() => setActiveTab('wishlist')}
+                    onClick={() => goTab('wishlist')}
                   >
                     <svg className="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -757,7 +904,7 @@ export default function AccountPage() {
                   </button>
                   <button
                     className={`menu-link ${activeTab === 'profile' ? 'is-active' : ''}`}
-                    onClick={() => setActiveTab('profile')}
+                    onClick={() => goTab('profile')}
                   >
                     <svg className="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -767,7 +914,7 @@ export default function AccountPage() {
                   </button>
                   <button
                     className={`menu-link ${activeTab === 'addresses' ? 'is-active' : ''}`}
-                    onClick={() => setActiveTab('addresses')}
+                    onClick={() => goTab('addresses')}
                   >
                     <svg className="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -886,7 +1033,7 @@ export default function AccountPage() {
         <div className="modal-overlay" onClick={() => setShowOrderDetailModal(false)}>
           <div className="modal-content order-detail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Chi tiết đơn hàng #{selectedOrder.id}</h3>
+              <h3>Chi tiết đơn hàng: {selectedOrder.orderNumber || selectedOrder.order_number || `#${selectedOrder.id}`}</h3>
               <button className="modal-close" onClick={() => setShowOrderDetailModal(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -901,24 +1048,44 @@ export default function AccountPage() {
 
               <div className="order-detail-section">
                 <h4>Sản phẩm</h4>
+
                 <div className="order-products-list">
-                  {selectedOrder.products && selectedOrder.products.map((product, index) => (
-                    <div key={index} className="order-product-item">
-                      <img src={product.image} alt={product.name} className="product-thumb" />
-                      <div className="product-info">
-                        <div className="product-name">{product.name}</div>
-                        <div className="product-meta">Số lượng: {product.quantity}</div>
+                  {(selectedOrder._lines || []).length > 0 ? (
+                    (selectedOrder._lines || []).map((p, index) => (
+                      <div key={index} className="order-product-item">
+                        <img
+                          src={p.image || 'https://via.placeholder.com/80?text=No+Image'}
+                          alt={p.name || 'Sản phẩm'}
+                          className="product-thumb"
+                          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/80?text=No+Image'; }}
+                        />
+                        <div className="product-info">
+                          <div className="product-name">{p.name || `Sản phẩm #${p.productId ?? ''}`}</div>
+
+                          {(p.size || p.color) && (
+                            <div className="product-meta">
+                              {p.size && <span>Size: {p.size}</span>}
+                              {p.size && p.color && <span> • </span>}
+                              {p.color && <span>Màu: {p.color}</span>}
+                            </div>
+                          )}
+
+                          <div className="product-meta">Số lượng: {p.quantity}</div>
+                        </div>
+
+                        <div className="product-price">{(p.lineTotal || 0).toLocaleString()}₫</div>
                       </div>
-                      <div className="product-price">{product.price.toLocaleString()}₫</div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <div style={{ padding: 8, opacity: 0.7 }}>Không có sản phẩm trong đơn hàng.</div>
+                  )}
                 </div>
               </div>
 
               <div className="order-detail-section">
                 <h4>Tổng cộng</h4>
                 <div className="order-total-amount">
-                  {(selectedOrder.total || selectedOrder.totalAmount).toLocaleString()}₫
+                  {(Number(selectedOrder.total ?? selectedOrder.totalAmount ?? 0) || 0).toLocaleString()}₫
                 </div>
               </div>
             </div>
