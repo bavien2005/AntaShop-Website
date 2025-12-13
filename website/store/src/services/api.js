@@ -1,6 +1,8 @@
 // src/services/api.js
+// import axios from "axios";
+// import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
 import axios from "axios";
-import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index";
+import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
 
 
 const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";
@@ -354,9 +356,9 @@ export const revenueService = {
 };
 
 // Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
-// =======
-// // direct cart-service fallback
-// >>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
+=======
+// direct cart-service fallback
+>>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
 const getCartDirectly = async (userId, sessionId) => {
   try {
     const params = new URLSearchParams();
