@@ -4,11 +4,13 @@
 import axios from "axios";
 import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
 
-const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";   // ⬅️ move lên đây
 
+const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";
 // --- ORDER (order-service direct calls) ---
 export const ORDER_BASE_URL =
-  import.meta.env.VITE_ORDER_SERVICE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
+  import.meta.env.VITE_ORDER_SERVICE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:8080";
 
 export const orderApi = axios.create({
   baseURL: ORDER_BASE_URL,
@@ -16,13 +18,20 @@ export const orderApi = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// attach token if present
 orderApi.interceptors.request.use((cfg) => {
   const token = localStorage.getItem(TOKEN_KEY);
-  if (token) cfg.headers = { ...(cfg.headers || {}), Authorization: `Bearer ${token}` };
+  if (token) {
+    cfg.headers = { ...(cfg.headers || {}), Authorization: `Bearer ${token}` };
+  }
   return cfg;
-});
-
+})
+export const notificationService = {
+  sendOrderSuccess: async (payload) => {
+    const res = await api.post('/api/notifications/order-success', payload);
+    return res.data; // {success, message, requestId}
+  }
+};
+// orderService: call order-service endpoints
 // orderService: call order-service endpoints
 export const orderService = {
   createOrder: async (payload) => {
@@ -30,26 +39,122 @@ export const orderService = {
     // { userId, items: [{ productId, variantId, quantity, note? }], shippingAddress?, paymentMethod? }
     try {
       const res = await orderApi.post("/api/orders/create", payload);
-      // CreateOrderResponse { orderId, status, payUrl }
+      // CreateOrderResponse { id (numeric)?, orderId (string)?, status, payUrl, total, ... }
       return res.data;
     } catch (err) {
-      // throw an Error with message for UI
-      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || "Order API error";
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Order API error";
+      // rethrow so frontend can catch and show message
       throw new Error(msg);
     }
   },
 
+  /**
+   * Robust getOrder:
+   * 1) try GET /api/orders/{orderId} (works if backend expects numeric id or accepts string)
+   * 2) if fails AND orderId is a string (contains non-digits), try GET /api/orders/by-order-number/{orderNumber}
+   * 3) if all fail, throw error
+   *
+   * This prevents 400 when the frontend has an orderNumber like "6-xxxx-uuid".
+   */
   getOrder: async (orderId) => {
+    const tryPaths = [
+      () => orderApi.get(`/api/orders/${encodeURIComponent(orderId)}`), // primary
+      () => orderApi.get(`/api/orders/by-order-number/${encodeURIComponent(orderId)}`), // common fallback
+      () => orderApi.get(`/api/orders/order-number/${encodeURIComponent(orderId)}`), // alternative fallback
+      () => orderApi.get(`/api/orders?orderNumber=${encodeURIComponent(orderId)}`), // query fallback
+    ];
+
+    // attempt primary and on failure try fallbacks for string-like orderNumbers
     try {
-      const res = await orderApi.get(`/api/orders/${encodeURIComponent(orderId)}`);
-      // OrderResponse
+      const res = await tryPaths[0]();
       return res.data;
-    } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || "getOrder failed";
+    } catch (primaryErr) {
+      // if orderId looks like numeric string, rethrow original error
+      const looksNumeric = /^-?\d+$/.test(String(orderId));
+      if (looksNumeric) {
+        const msg = primaryErr?.response?.data?.message || primaryErr?.message || "getOrder failed";
+        throw new Error(msg);
+      }
+
+      // try fallbacks in order
+      for (let i = 1; i < tryPaths.length; i++) {
+        try {
+          const r = await tryPaths[i]();
+          return r.data;
+        } catch (e) {
+          // continue to next fallback
+        }
+      }
+
+      // none worked -> build friendly message
+      const msg = primaryErr?.response?.data?.message || primaryErr?.message || "getOrder failed";
       throw new Error(msg);
     }
   },
 
+  // get order by its orderNumber explicitly
+  getOrderByOrderNumber: async (orderNumber) => {
+    try {
+      const res = await orderApi.get(`/api/orders/by-order-number/${encodeURIComponent(orderNumber)}`);
+      return res.data;
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "getOrderByOrderNumber failed";
+      throw new Error(msg);
+    }
+  },
+
+  // Update payment status on order-service (best-effort). Backend endpoint may differ; adjust if needed.
+  updatePayment: async (orderId, status) => {
+    try {
+      // Try existing API patterns first (existing code)
+      const res = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/payment-status/${encodeURIComponent(status)}`);
+      return res.data;
+    } catch (err) {
+      // fallback: try other endpoints used by the backend
+      try {
+        const res2 = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/payment/${encodeURIComponent(status)}`);
+        return res2.data;
+      } catch (err2) {
+        // final fallback: use PUT /{id}/paid when status indicates 'SUCCESS'/'PAID'
+        try {
+          if (['SUCCESS', 'PAID', 'COMPLETED'].includes((status || '').toString().toUpperCase())) {
+            const r3 = await orderApi.put(`/api/orders/${encodeURIComponent(orderId)}/paid`);
+            return r3.data;
+          }
+        } catch (err3) { /* ignore and throw below */ }
+        const msg = err2?.response?.data?.message || err2?.message || "updatePayment failed";
+        throw new Error(msg);
+      }
+    }
+  },
+  markPaid: async (orderId) => {
+    try {
+      const res = await orderApi.put(`/api/orders/${encodeURIComponent(orderId)}/paid`);
+      // some controllers return 204 No Content - just return true
+      return res.data ?? true;
+    } catch (e) {
+      const msg = e?.response?.data?.message || e?.message || 'markPaid failed';
+      throw new Error(msg);
+    }
+  },
+  getOrders: async (params = {}) => {
+    try {
+      const res = await orderApi.get('/api/orders', { params });
+      const data = res.data;
+      // support various shapes: array, { data: [] }, { orders: [] }
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.data)) return data.data;
+      if (data && Array.isArray(data.orders)) return data.orders;
+      // fallback: if object with keys and one of them is an array
+      for (const k of Object.keys(data || {})) {
+        if (Array.isArray(data[k])) return data[k];
+      }
+      return [];
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "getOrders failed";
+      throw new Error(msg);
+    }
+  },
   cancelOrder: async (orderId) => {
     try {
       const res = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/cancel`);
@@ -61,13 +166,14 @@ export const orderService = {
   },
 };
 
+
 export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 export const PRODUCT_BASE_URL =
   import.meta.env.VITE_PRODUCT_SERVICE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
 export const CLOUD_BASE_URL =
   import.meta.env.VITE_CLOUD_API_URL || import.meta.env.VITE_CLOUD_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
 
-// const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";
+
 
 // ------------------- UTILS -------------------
 const getErrorMessage = (err) => {
@@ -123,6 +229,7 @@ export const authService = {
 };
 
 // ------------------- PRODUCT (user-facing via gateway) -------------------
+// inside src/services/api.js -> productService
 export const productService = {
   getProducts: async (params = {}) => {
     const res = await api.get(API_ENDPOINTS.PRODUCTS.LIST, { params });
@@ -133,11 +240,31 @@ export const productService = {
     const res = await api.get(url);
     return res.data;
   },
-  searchProducts: async (q) => {
-    const res = await api.get(API_ENDPOINTS.PRODUCTS.SEARCH, { params: { q } });
+  searchProducts: async (q, params = {}) => {
+    const res = await api.get("/api/product/search", { params: { q, ...params } });
     return res.data;
   },
+
+  // <-- NEW: getVariants(productId)
+  getVariants: async (productId) => {
+    try {
+      // adjust path if your product-service uses different route
+      const res = await productApi.get(`/api/products/${encodeURIComponent(productId)}/variants`);
+      // support both array or { data: [] } shapes
+      const data = res.data;
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.data)) return data.data;
+      // fallback: if object contains variants key
+      if (data && Array.isArray(data.variants)) return data.variants;
+      // else return empty
+      return [];
+    } catch (err) {
+      console.warn('[productService.getVariants] failed', err);
+      return [];
+    }
+  }
 };
+
 
 // ------------------- CART (gateway) -------------------
 export const cartService = {
@@ -212,17 +339,26 @@ export const cartService = {
 // ------------------- REVENUE / DASHBOARD SERVICE -------------------
 export const revenueService = {
   getWeeklyRevenue: async () => {
-    const res = await api.get('/api/dashboard/revenue/weekly');
-    // Backend: revenue-service qua gateway /api/dashboard/**
-    // Trả về: [{ week: "2025-W50", expectedRevenue: 2781997.63, actualRevenue: 1234567.89 }, ...]
-    return res.data;
+    try {
+      const res = await api.get(API_ENDPOINTS.ADMIN.STATS.REVENUE_WEEKLY);
+      return res.data;
+    } catch (err) {
+      console.error('Revenue API error:', err);
+      // Fallback mock data
+      return [
+        { week: "2025-W49", expectedRevenue: 2500000, actualRevenue: 1800000 },
+        { week: "2025-W50", expectedRevenue: 3200000, actualRevenue: 2100000 },
+        { week: "2025-W51", expectedRevenue: 2800000, actualRevenue: 2300000 },
+        { week: "2025-W52", expectedRevenue: 3500000, actualRevenue: 1900000 }
+      ];
+    }
   }
 };
 
 // Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
-
+=======
 // direct cart-service fallback
-// >>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
+>>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
 const getCartDirectly = async (userId, sessionId) => {
   try {
     const params = new URLSearchParams();
@@ -263,33 +399,41 @@ export const userService = {
     try {
       const res = await api.put("/api/user/profile", data);
       // update LS for cross-page auto-fill
-      try { localStorage.setItem("anta_user_profile", JSON.stringify(res.data)); } catch {}
+      try { localStorage.setItem("anta_user_profile", JSON.stringify(res.data)); } catch { }
       return res.data;
     } catch (err) {
       // fallback: update LS only
-      try { localStorage.setItem("anta_user_profile", JSON.stringify(data)); } catch {}
+      try { localStorage.setItem("anta_user_profile", JSON.stringify(data)); } catch { }
       return data;
     }
   },
   getAddresses: async () => {
     try {
-      const res = await api.get("/api/address/allUserAddress");
-      // normalize shapes
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS?.USER || "null") || "null");
+      // nếu không có user trên FE thì fallback ngay sang localStorage mock
+      if (!user || !user.id) {
+        const ls = JSON.parse(localStorage.getItem("anta_user_addresses") || "[]");
+        return ls;
+      }
+
+      // gọi đúng endpoint có userId path param
+      const res = await api.get(`/api/address/allUserAddress/${user.id}`);
       const d = res.data;
+      // normalise shapes (array or object.wrappedArray)
       if (Array.isArray(d)) return d;
-      if (typeof d === "object") {
-        // try find an array inside object
-        for (const k of Object.keys(d)) {
-          if (Array.isArray(d[k])) return d[k];
-        }
+      if (d && Array.isArray(d.data)) return d.data;
+      for (const k of Object.keys(d || {})) {
+        if (Array.isArray(d[k])) return d[k];
       }
       return [];
     } catch (err) {
-      // fallback to LS/mock
+      // fallback to LS/mock if gateway/identity unreachable
       try {
         const ls = JSON.parse(localStorage.getItem("anta_user_addresses") || "[]");
         return ls;
-      } catch { return []; }
+      } catch {
+        return [];
+      }
     }
   },
   addAddress: async (payload) => {

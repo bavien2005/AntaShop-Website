@@ -81,7 +81,8 @@ export const API_ENDPOINTS = {
       UPDATE: '/api/admin/settings'
     },
     STATS: {
-      DASHBOARD: '/api/admin/stats/dashboard'
+      DASHBOARD: '/api/admin/stats/dashboard',
+      REVENUE_WEEKLY: '/api/dashboard/revenue/weekly'
     }
   }
 };

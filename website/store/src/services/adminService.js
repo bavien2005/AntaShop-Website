@@ -1,42 +1,40 @@
-// src/services/adminService.js
 import * as _productModule from "./admin/productService";
 import axios from "axios";
 
-export const adminProductService = _productModule.adminProductService || _productModule.default || _productModule;
+export const adminProductService =
+  _productModule.adminProductService || _productModule.default || _productModule;
 
-// Admin orders stored in localStorage for mock behavior
+// ✅ baseURL giống cách bạn làm trước đó
+const API_BASE = import.meta.env.VITE_API_URL
+
+const API = axios.create({
+  baseURL: API_BASE,
+  headers: { "Content-Type": "application/json; charset=utf-8" },
+  timeout: 15000,
+});
+
+API.interceptors.request.use((config) => {
+  const t =
+    localStorage.getItem("anta_admin_token") ||
+    localStorage.getItem("anta_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
+  if (t) config.headers.Authorization = `Bearer ${t}`;
+  return config;
+});
+
+
 const ADMIN_ORDERS_KEY = "anta_admin_orders";
-let mockOrders;
+let mockOrders = [];
 try {
   const stored = localStorage.getItem(ADMIN_ORDERS_KEY);
-  mockOrders = stored ? JSON.parse(stored) : [
-    {
-      id: 1,
-      customer: "Nguyễn Văn A",
-      orderNumber: "2201223FJAOQ",
-      date: "2024-12-25",
-      total: 1000000,
-      status: "needs-shipping",
-      products: [
-        {
-          id: 1,
-          name: "Giày ANTA KT7 - Đen",
-          image:
-            "https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=80",
-          price: 600000,
-          quantity: 1,
-          dueDate: "Trước 28/12/2024",
-          shippingService: "J&T",
-        },
-      ],
-    },
-  ];
-} catch (e) {
-  mockOrders = [];
-}
+  mockOrders = stored ? JSON.parse(stored) : [];
+} catch { mockOrders = []; }
+
 const saveAdminOrders = (orders) => {
-  try { localStorage.setItem(ADMIN_ORDERS_KEY, JSON.stringify(orders)); } catch (e) { console.error(e); }
+  try { localStorage.setItem(ADMIN_ORDERS_KEY, JSON.stringify(orders)); } catch { }
 };
+
 
 // simple mocks for messages/notifications/settings
 let mockMessages = [{ id: 1, customer: "Nguyễn Văn A", subject: "Hỏi về sản phẩm", message: "Size 42 còn không?", time: "5 phút trước", date: new Date().toISOString(), read: false, replies: [] }];
@@ -45,79 +43,134 @@ let mockSettings = { storeName: "ANTA Store", email: "admin@anta.com.vn", phone:
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
-// ----------------- Orders -----------------
+const mapStatusToMock = (status) => {
+  if (!status) return status;
+  const s = String(status).trim();
+
+  // giữ nguyên nếu đã là mock status
+  const lower = s.toLowerCase();
+  if (['all', 'needs-shipping', 'sent', 'completed', 'cancelled', 'unpaid', 'return', 'confirmed'].includes(lower)) {
+    return lower;
+  }
+
+  // map enum BE -> mock status
+  const upper = s.toUpperCase();
+  if (upper === 'PENDING') return 'needs-shipping';
+  if (upper === 'CONFIRMED') return 'confirmed';     // ✅ thêm trạng thái mới trong mock
+  if (upper === 'SHIPPED') return 'sent';
+  if (upper === 'DELIVERED') return 'completed';
+  if (upper === 'CANCELLED' || upper === 'CANCELED') return 'cancelled';
+
+  // payment statuses (nếu có)
+  if (upper === 'PENDING_PAYMENT') return 'unpaid';
+  if (upper === 'PAID') return 'paid';
+  if (upper === 'FAILED') return 'failed';
+
+  return lower;
+};
 export const adminOrderService = {
+  // ✅ GET /api/orders/admin/all
   getOrders: async (filters = {}) => {
-    await delay();
     try {
-      let list = [...mockOrders];
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        list = list.filter((o) => (o.orderNumber || "").toLowerCase().includes(q) || (o.customer || "").toLowerCase().includes(q));
+      const params = {};
+
+      // search
+      if (filters.search) params.search = String(filters.search).trim();
+
+      // status: ALL thì bỏ param, còn lại gửi đúng enum BE
+      if (filters.status && String(filters.status).toUpperCase() !== "ALL") {
+        params.status = String(filters.status).toUpperCase();
       }
-      if (filters.status && filters.status !== "all") {
-        list = list.filter((o) => o.status === filters.status);
-      }
-      list.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      // orderNumber nếu có
+      if (filters.orderNumber) params.orderNumber = String(filters.orderNumber).trim();
+
+      // userId (nếu admin muốn lọc theo user)
+      if (filters.userId != null) params.userId = Number(filters.userId);
+
+      // baseURL đang là "/api" => gọi "/orders" sẽ thành "/api/orders" ✅
+      const res = await API.get("/api/orders", { params });
+
+      let list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+
+      // sort mới nhất lên đầu (hỗ trợ nhiều field)
+      list.sort(
+        (a, b) =>
+          new Date(b.createdAt || b.created_at || b.date || 0) -
+          new Date(a.createdAt || a.created_at || a.date || 0)
+      );
+
       return { success: true, data: list };
-    } catch (err) { return { success: false, error: err.message }; }
+    } catch (e) {
+      // fallback mock nếu API fail
+      await delay();
+      return { success: true, data: [...mockOrders] };
+    }
   },
 
-  getOrder: async (id) => {
-    await delay();
-    const o = mockOrders.find((x) => String(x.id) === String(id));
-    return o ? { success: true, data: o } : { success: false, error: "Không tìm thấy đơn hàng" };
-  },
-
-  createOrder: async (orderData) => {
-    await delay();
-    try {
-      const newId = mockOrders.length ? Math.max(...mockOrders.map((o) => o.id)) + 1 : 1;
-      const newOrder = {
-        id: newId,
-        customer: orderData.customer?.fullName || "Khách hàng",
-        orderNumber: orderData.orderNumber || `ANT${Date.now().toString().slice(-8)}`,
-        date: new Date().toISOString().split("T")[0],
-        total: orderData.total || 0,
-        status: "needs-shipping",
-        products: orderData.items || [],
-      };
-      mockOrders.unshift(newOrder);
-      saveAdminOrders(mockOrders);
-      return { success: true, data: newOrder, message: "Đơn hàng tạo thành công (mock)" };
-    } catch (err) { return { success: false, error: err.message }; }
-  },
-
+  // ✅ PUT /api/orders/{id}/status body: { status: "CONFIRMED" }
   updateOrderStatus: async (id, status) => {
-    await delay();
-    const idx = mockOrders.findIndex((o) => String(o.id) === String(id));
-    if (idx === -1) return { success: false, error: "Không tìm thấy đơn hàng" };
-    mockOrders[idx].status = status;
-    if (mockOrders[idx].products) {
-      mockOrders[idx].products.forEach((p) => {
-        if (status === "cancelled") { p.dueDate = "Đã hủy"; p.shippingService = "Đã hủy"; }
-        else if (status === "completed") { p.dueDate = "Đã hoàn thành"; p.shippingService = "Đã giao"; }
-        else if (status === "sent") { p.dueDate = "Đang giao hàng"; p.shippingService = p.shippingService || "Đang giao"; }
+    try {
+      // baseURL "/api" + "/orders/.." => "/api/orders/.." ✅
+      const res = await API.put(`/api/orders/${id}/status`, {
+        status: String(status || "").toUpperCase(),
       });
+      return { success: true, data: res.data, message: "Cập nhật trạng thái thành công" };
+    } catch (e) {
+      await delay();
+      const idx = mockOrders.findIndex((o) => String(o.id) === String(id));
+      if (idx === -1) return { success: false, error: "Không tìm thấy đơn hàng (mock)" };
+      mockOrders[idx].status = String(status || "");
+      saveAdminOrders(mockOrders);
+      return { success: true, data: mockOrders[idx], message: "Cập nhật trạng thái thành công (mock)" };
     }
-    saveAdminOrders(mockOrders);
-    return { success: true, data: mockOrders[idx], message: "Cập nhật trạng thái thành công (mock)" };
+  },
+  cancelOrderAdmin: async (id) => {
+    try {
+      const res = await API.post(`/api/orders/${id}/cancel-admin`);
+      return { success: true, data: res.data, message: res.data?.message || "OK" };
+    } catch (e) {
+      await delay();
+      // mock fallback: chuyển CANCELLED
+      const idx = mockOrders.findIndex((o) => String(o.id) === String(id));
+      if (idx === -1) return { success: false, error: "Không tìm thấy đơn hàng (mock)" };
+
+      const wasPaid = String(mockOrders[idx].status || "").toUpperCase() === "PAID";
+      mockOrders[idx].status = "CANCELLED";
+      mockOrders[idx].refundRequested = wasPaid;
+      saveAdminOrders(mockOrders);
+
+      return {
+        success: true,
+        data: { deleted: false, refundRequested: wasPaid, message: wasPaid ? "Đã ghi nhận yêu cầu hoàn lại tiền (mock)" : "Đã hủy đơn (mock)" }
+      };
+    }
   },
 
-  arrangeShipping: async (orderId, shippingData) => {
-    await delay();
-    const idx = mockOrders.findIndex((o) => String(o.id) === String(orderId));
-    if (idx === -1) return { success: false, error: "Không tìm thấy đơn hàng" };
-    mockOrders[idx].status = "sent";
-    mockOrders[idx].shippingInfo = shippingData;
-    if (mockOrders[idx].products) {
-      mockOrders[idx].products.forEach((p) => {
-        p.dueDate = "Đang giao hàng";
-        p.shippingService = shippingData.service || "J&T Express";
-      });
+  deleteOrderAdmin: async (id) => {
+    try {
+      const res = await API.delete(`/api/orders/${id}`);
+      return { success: true, data: res.data, message: res.data?.message || "OK" };
+    } catch (e) {
+      await delay();
+      // mock fallback: nếu PAID => refund request, nếu không => xóa
+      const idx = mockOrders.findIndex((o) => String(o.id) === String(id));
+      if (idx === -1) return { success: false, error: "Không tìm thấy đơn hàng (mock)" };
+
+      const wasPaid = String(mockOrders[idx].status || "").toUpperCase() === "PAID";
+      if (wasPaid) {
+        mockOrders[idx].status = "CANCELLED";
+        mockOrders[idx].refundRequested = true;
+      } else {
+        mockOrders.splice(idx, 1);
+      }
+      saveAdminOrders(mockOrders);
+
+      return {
+        success: true,
+        data: { deleted: !wasPaid, refundRequested: wasPaid, message: wasPaid ? "Chuyển sang yêu cầu hoàn tiền (mock)" : "Đã xóa đơn (mock)" }
+      };
     }
-    saveAdminOrders(mockOrders);
-    return { success: true, data: mockOrders[idx], message: "Sắp xếp giao hàng thành công (mock)" };
   },
 };
 

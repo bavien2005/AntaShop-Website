@@ -59,6 +59,7 @@ export function useCart() {
         await cartService.mergeCart(sessionId, user.id);
         setHasMerged(true);
         await fetchCart();
+        await fetchCart();
       } catch (err) {
         console.error("❌ mergeCart error:", err);
       }
@@ -83,6 +84,7 @@ export function useCart() {
     setCart(updated);
     return updated;
   };
+
 
   const removeItem = async (cartItemId) => {
     await cartService.removeItem(cartItemId);

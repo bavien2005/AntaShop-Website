@@ -1,3 +1,4 @@
+//src/pages/CartPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../contexts';
@@ -222,10 +223,34 @@ export default function CartPage() {
       return;
     }
 
+    // Kiểm tra xem có item nào thiếu variantId / size / color không
+    const missing = items.filter(it => {
+      const vid = it.variantId ?? null;
+      const size = it.size ?? null;
+      const color = it.color ?? null;
+      // Nếu bạn cho phép chỉ cần variantId thì bỏ size/color check.
+      // Ở đây ta yêu cầu cả variantId + size + color (theo yêu cầu của bạn).
+      return !(vid && size && color);
+    });
+
+    if (missing.length > 0) {
+      const names = missing.map(m => m.name || `#${m.productId || m.id}`).join(', ');
+      alert(`Không thể tiến hành thanh toán. Một số sản phẩm thiếu thông tin biến thể (size/màu/variant). Vui lòng kiểm tra: ${names}`);
+      return;
+    }
+
     const orderData = {
       items: items.map((item) => ({
-        ...item,
+        id: item.id,
+        productId: item.productId,
+        variantId: item.variantId ?? null,
+        name: item.name,
         quantity: getLocalQty(item),
+        price: item.price,
+        size: item.size ?? null,
+        color: item.color ?? null,
+        sku: item.sku ?? null,
+        image: item.image ?? null
       })),
       coupon: appliedCoupon,
       notes: orderNotes,
@@ -236,9 +261,16 @@ export default function CartPage() {
         shipping,
         total: finalTotal,
       },
+      createdAt: new Date().toISOString()
     };
 
-    localStorage.setItem('checkout_data', JSON.stringify(orderData));
+    // lưu backup để Checkout có thể đọc nếu cần
+    try {
+      localStorage.setItem('checkout_data', JSON.stringify(orderData));
+    } catch (e) {
+      console.warn('Could not save checkout_data', e);
+    }
+
     navigate('/checkout');
   };
 
@@ -533,54 +565,7 @@ export default function CartPage() {
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Shipping method (ẩn khi đủ freeship) */}
-                  {localTotalPrice < FREE_SHIPPING_THRESHOLD && (
-                    <div className="shipping-section">
-                      <h3 className="section-title">Phương thức vận chuyển</h3>
-                      <div className="shipping-options">
-                        {Object.entries(SHIPPING_METHODS).map(([key, method]) => {
-                          if (key === 'free') return null;
-                          return (
-                            <label key={key} className="shipping-option">
-                              <input
-                                type="radio"
-                                name="shipping"
-                                value={key}
-                                checked={shippingMethod === key}
-                                onChange={(e) => setShippingMethod(e.target.value)}
-                              />
-                              <div className="shipping-info">
-                                <span className="shipping-name">{method.name}</span>
-                                <span className="shipping-time">({method.time})</span>
-                              </div>
-                              <span className="shipping-price">
-                                {method.price === 0
-                                  ? 'Miễn phí'
-                                  : `${method.price.toLocaleString()}₫`}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  <div className="notes-section">
-                    <h3 className="section-title">Ghi chú đơn hàng</h3>
-                    <textarea
-                      className="order-notes"
-                      placeholder="Ghi chú về đơn hàng, ví dụ: thời gian hay chỉ dẫn địa điểm giao hàng chi tiết hơn."
-                      value={orderNotes}
-                      onChange={(e) => setOrderNotes(e.target.value)}
-                      rows="4"
-                      maxLength="500"
-                    />
-                    <span className="notes-counter">{orderNotes.length}/500</span>
-                  </div>
-
+                  </div>              
                   {/* Order summary */}
                   <div className="order-summary">
                     <h3 className="section-title">Tổng đơn hàng</h3>

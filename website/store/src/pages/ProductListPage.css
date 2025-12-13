@@ -79,6 +79,7 @@
   top: calc(var(--header-height) + var(--space-lg));
   border: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  color: #111;
 }
 
 .sidebar-main-title {
@@ -142,7 +143,7 @@
 
 .filter-option span {
   font-size: 14px;
-  color: var(--color-text);
+  color: #111;
   cursor: pointer;
   user-select: none;
   font-weight: var(--font-weight-medium);

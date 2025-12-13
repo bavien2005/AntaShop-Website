@@ -1,4 +1,4 @@
-// src/components/AdminAddProduct.jsx
+//src/components/AdminAddProduct.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import cloudApi, { uploadMultipleToCloud } from '../services/cloud';
 // import { products as adminProductService } from '../services';
@@ -20,6 +20,16 @@ const toUpper = s => (s || '').toUpperCase();
 const toCap = s => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : s);
 
 export default function AdminAddProduct({ editingProduct = null, onSaved = () => { }, onCancel = () => { } }) {
+  // const [categories, setCategories] = useState([
+  //   "Giày Bóng Rổ",
+  //   "Giày Chạy Bộ",
+  //   "Giày Lifestyle",
+  //   "Áo Thun",
+  //   "Áo Khoác",
+  //   "Quần Short",
+  //   "Quần Dài",
+  //   "Phụ Kiện"
+  // ]);
   const [form, setForm] = useState({
     name: '',
     brand: '',
@@ -97,6 +107,7 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
   // ---------- RESET / MAP EDIT ----------
   useEffect(() => {
     if (!editingProduct) {
+      // reset form khi không còn editingProduct
       setForm({
         name: '',
         brand: '',
@@ -111,6 +122,7 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
       return;
     }
 
+    // Nếu có editingProduct -> gán vào form, variants, images
     try {
       const imgs = Array.isArray(editingProduct.images)
         ? editingProduct.images
@@ -118,11 +130,12 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
 
       const mappedImages = imgs.map((url, idx) => ({
         src: typeof url === 'string' ? url : (url?.url || url?.fileUrl || url?.path || ''),
-        file: null,
+        file: null,          // không phải file local, do backend trả sẵn
         id: typeof url === 'object' && (url.id || url._id) ? (url.id || url._id) : null,
         isMain: Boolean(editingProduct.thumbnail ? (String(url) === String(editingProduct.thumbnail)) : (idx === 0))
       }));
 
+      // set preliminary form so UI khoẻ khi mở edit
       setForm(prev => ({
         ...prev,
         name: editingProduct.name || prev.name,
@@ -134,12 +147,15 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         thumbnail: editingProduct.thumbnail || (mappedImages[0]?.src || prev.thumbnail || '')
       }));
 
+      // Try to fetch file metadata from cloud and merge ids/isMain (so we have DB file ids for later update)
       (async () => {
         try {
+          // call cloud service to get FileMetadata[] for this product
           const resp = await cloudApi.get(`/api/cloud/product/${editingProduct.id}`);
           const files = Array.isArray(resp?.data) ? resp.data : [];
           if (!files.length) return;
 
+          // build lookup by exact url
           const urlMap = new Map(files.map(f => [String(f.url), f]));
           const filenameMap = new Map();
           files.forEach(f => {
@@ -148,6 +164,7 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
             if (tail) filenameMap.set(tail, f);
           });
 
+          // merge into current mappedImages
           setForm(prev => {
             const base = Array.isArray(prev.images) ? prev.images.slice() : [];
             const merged = base.map(img => {
@@ -167,6 +184,8 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         } catch { }
       })();
 
+
+      // map variants -> dùng chuỗi cho input values
       const mappedVariants = Array.isArray(editingProduct.variants) ? editingProduct.variants.map((v) => ({
         id: v.id ?? (`v-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`),
         sku: v.sku ?? v.SKU ?? '',
@@ -273,8 +292,9 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
 
       const payload = {
         name: form.name,
-        brand: form.brand || null,
-        description: form.description || "",
+        brand: form.brand,
+        description: form.description,
+        category: form.category,
         price: variants.length ? undefined : Number(form.price),
         // BE của bạn dùng categoryId (không phải slug):
         categoryId: form.category?.id || undefined,
@@ -387,6 +407,8 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         return;
       }
 
+
+      alert("Lưu thành công");
     } catch (err) {
       console.error(err);
       alert("Lỗi: " + (err?.response?.data?.message || err?.message || err));
