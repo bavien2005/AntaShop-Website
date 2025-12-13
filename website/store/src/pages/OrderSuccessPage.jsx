@@ -6,6 +6,8 @@ import { useOrders } from '../contexts';
 import { useToast } from '../components/ToastContainer';
 import { STORAGE_KEYS } from '../constants';
 import './OrderSuccessPage.css';
+import { notificationService } from '../services/api';
+import { useAuth, useUserData } from '../contexts';
 // ---------- helper functions ----------
 const isPaidStatus = (rawOrStatus) => {
   if (!rawOrStatus) return false;
@@ -59,7 +61,9 @@ export default function OrderSuccessPage() {
   const [orderData, setOrderData] = useState(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const hasShownToast = useRef(false);
-
+  const { user } = useAuth();
+  const { profile } = useUserData();
+  const sentOrderMailRef = useRef(false);
   useEffect(() => {
     const summary = location.state?.orderSummary;
     if (summary) {
@@ -283,6 +287,52 @@ export default function OrderSuccessPage() {
       console.error('Error normalizing order data', err);
     }
   }, [location.state, refreshOrders, showSuccess]);
+
+  useEffect(() => {
+    if (!orderData) return;
+    if (sentOrderMailRef.current) return;
+
+    const orderNo = extractDisplayOrderNumber(orderData) || orderData.orderNumber || '';
+    if (!orderNo) return;
+
+    // ưu tiên email user đang đăng nhập
+    let toEmail =
+      profile?.email ||
+      user?.email ||
+      orderData?.customer?.email ||
+      '';
+
+    if (!toEmail) {
+      try {
+        const lsProfile = JSON.parse(localStorage.getItem('anta_user_profile') || 'null');
+        toEmail = lsProfile?.email || '';
+      } catch { }
+    }
+    if (!toEmail) return;
+
+    // chống gửi trùng khi refresh
+    const lsKey = `anta_sent_order_success_${orderNo}_${toEmail}`;
+    if (localStorage.getItem(lsKey) === '1') {
+      sentOrderMailRef.current = true;
+      return;
+    }
+
+    sentOrderMailRef.current = true;
+
+    notificationService.sendOrderSuccess({
+      to: toEmail,
+      orderNumber: orderNo,
+      customerName: user?.username || 'bạn',
+      total: Math.round(Number(orderData?.total || 0)),
+      idempotencyKey: `order_success:${orderNo}:${toEmail}`,
+    }).then(() => {
+      try { localStorage.setItem(lsKey, '1'); } catch { }
+    }).catch((e) => {
+      console.warn('[OrderSuccessPage] sendOrderSuccess failed:', e);
+      sentOrderMailRef.current = false;
+    });
+
+  }, [orderData, profile?.email, user?.email]);
 
   if (!orderData) {
     return (
