@@ -1,151 +1,152 @@
-// src/hooks/useCart.js
 import { useEffect, useState, useCallback } from "react";
 import { cartService } from "../services/api";
 import { getSessionId } from "../utils/session";
-import { STORAGE_KEYS } from "../constants/index";
+import { useAuth } from "../contexts/AuthContext";
 
 export function useCart() {
-  const [cart, setCart] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isAuthenticated } = useAuth();
+
+  const [cart, setCart] = useState({ id: null, items: [] });
+  const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(() => getSessionId());
   const [hasMerged, setHasMerged] = useState(false);
 
-  const getUser = () => {
-    try {
-      const userStr =
-        localStorage.getItem(STORAGE_KEYS.USER) ||
-        localStorage.getItem("user");
-      return userStr ? JSON.parse(userStr) : null;
-    } catch (e) {
-      console.error("❌ getUser parse error:", e);
-      return null;
-    }
-  };
-
-  const user = getUser();
-  const sessionId = getSessionId();
-
-  // ============= FETCH CART =============
+  // ================== FETCH CART ==================
   const fetchCart = useCallback(async () => {
     try {
       setLoading(true);
 
-      let response;
-      if (user?.id) {
-        // ưu tiên giỏ theo userId
-        response = await cartService.getCurrentCart(user.id, null);
+      let res;
+      if (isAuthenticated && user?.id) {
+        res = await cartService.getCurrentCart(user.id, null);
       } else {
-        // guest: lấy theo sessionId
-        response = await cartService.getCurrentCart(null, sessionId);
+        res = await cartService.getCurrentCart(null, sessionId);
       }
 
-      setCart(response || null);
+      setCart(res || { id: null, items: [] });
     } catch (err) {
       console.error("❌ fetchCart error:", err);
-      setCart(null);
+      setCart({ id: null, items: [] });
     } finally {
       setLoading(false);
     }
-  }, [user?.id, sessionId]);
+  }, [isAuthenticated, user?.id, sessionId]);
 
+  // fetch khi mount / khi user / session đổi
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
 
-  // ============= MERGE guest -> user KHI LOGIN =============
+  // ================== RESET MERGE FLAG KHI LOGIN ==================
   useEffect(() => {
-    const mergeCartsOnLogin = async () => {
-      const currentUser = getUser();
+    if (isAuthenticated && user?.id) {
+      setHasMerged(false); // 🔥 rất quan trọng
+    }
+  }, [isAuthenticated, user?.id]);
 
-      if (!currentUser?.id || !sessionId || hasMerged) return;
+  // ================== MERGE GUEST → USER (1 LẦN) ==================
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id || hasMerged) return;
 
+    const mergeCart = async () => {
       try {
-        await cartService.mergeCart(sessionId, currentUser.id);
+        const guestCart = await cartService.getCurrentCart(null, sessionId);
+        if (!guestCart?.items?.length) {
+          setHasMerged(true);
+          return;
+        }
+
+        await cartService.mergeCart(sessionId, user.id);
         setHasMerged(true);
-        await fetchCart(); // sau merge luôn fetch theo userId
+        await fetchCart();
       } catch (err) {
-        console.error("❌ Merge cart error:", err);
+        console.error("❌ mergeCart error:", err);
       }
     };
 
-    mergeCartsOnLogin();
-  }, [user?.id, sessionId, hasMerged, fetchCart]);
+    mergeCart();
+  }, [isAuthenticated, user?.id, sessionId, hasMerged, fetchCart]);
 
-  // ============= CRUD CART =============
+  // ================== CRUD ==================
   const addItem = async (product) => {
     const payload = {
-      userId: user?.id || null,
-      sessionId: user ? null : sessionId,
+      userId: isAuthenticated ? user.id : null,
+      sessionId: isAuthenticated ? null : sessionId,
       productId: Number(product.id),
-      variantId: product.variantId ? Number(product.variantId) : null,
+      variantId: product.variantId || null,
       productName: product.name,
       unitPrice: Number(product.price),
       quantity: product.quantity || 1,
     };
 
-    const updatedCart = await cartService.addToCart(payload);
-    setCart(updatedCart);
-    return updatedCart;
+    const updated = await cartService.addToCart(payload);
+    setCart(updated);
+    return updated;
   };
 
-  const removeItem = async (itemId) => {
-    await cartService.removeItem(itemId);
+  const removeItem = async (cartItemId) => {
+    await cartService.removeItem(cartItemId);
     await fetchCart();
   };
 
-  const clearCart = async () => {
+  const updateQuantity = async (productId, variantId, quantity) => {
     if (!cart?.id) return;
-    await cartService.clearCart(cart.id); // 👈 CÁI NÀY CHỈ DÙNG KHI BẠN BẤM "XÓA GIỎ HÀNG" TRÊN UI
-    await fetchCart();
-  };
 
-  const updateQuantity = async (productId, variantId, newQuantity) => {
-    if (!cart?.id) throw new Error("No cart found");
-    const updatedCart = await cartService.updateQuantity(
+    const updated = await cartService.updateQuantity(
       cart.id,
       Number(productId),
       variantId,
-      Number(newQuantity)
+      Number(quantity)
     );
-    setCart(updatedCart);
-    return updatedCart;
+    setCart(updated);
   };
 
-  // ============= RESET KHI LOGOUT – CHỈ FE, KHÔNG ĐỤNG DB =============
-  const resetCartAfterLogout = () => {
-    // ❌ KHÔNG gọi clearCart / API
-    // ❌ KHÔNG xoá sessionId (để DB giữ nguyên mọi thứ)
-    setCart(null);
-    setHasMerged(false);
-  };
+  // ================== RESET KHI LOGOUT ==================
+  useEffect(() => {
+    const onLogout = () => {
+      console.debug("[useCart] auth:logout → reset FE cart");
+      setCart({ id: null, items: [] });
+      setHasMerged(false);
+      setSessionId(getSessionId());
+    };
 
-  const value = {
+    window.addEventListener("auth:logout", onLogout);
+    return () => window.removeEventListener("auth:logout", onLogout);
+  }, []);
+
+  // ================== EXPOSE ==================
+  return {
     cart,
     loading,
     addItem,
     removeItem,
-    clearCart,              // dùng cho nút "Xóa tất cả" trong CartPage
     updateQuantity,
     refreshCart: fetchCart,
-    mergeGuestToUser: async () => {}, // hiện chưa dùng, để trống cũng được
-    resetCartAfterLogout,   // 👉 dùng khi logout
 
+    // 👇 dùng cho badge giỏ hàng
     get items() {
       return cart?.items || [];
     },
+
+    // 👉 nếu muốn badge = tổng quantity
     get totalItems() {
       return (cart?.items || []).reduce(
         (sum, item) => sum + (item.quantity || 0),
         0
       );
     },
+
+    // 👉 nếu muốn badge = số dòng sản phẩm
+    // get totalItems() {
+    //   return cart?.items?.length || 0;
+    // },
+
     get totalPrice() {
-      return (cart?.items || []).reduce((sum, item) => {
-        const price = item.unitPrice || 0;
-        const quantity = item.quantity || 0;
-        return sum + price * quantity;
-      }, 0);
+      return (cart?.items || []).reduce(
+        (sum, item) =>
+          sum + (item.unitPrice || 0) * (item.quantity || 0),
+        0
+      );
     },
   };
-
-  return value;
 }

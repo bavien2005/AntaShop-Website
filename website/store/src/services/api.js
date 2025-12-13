@@ -1,6 +1,10 @@
 // src/services/api.js
+// import axios from "axios";
+// import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
 import axios from "axios";
 import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
+
+const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";   // ⬅️ move lên đây
 
 // --- ORDER (order-service direct calls) ---
 export const ORDER_BASE_URL =
@@ -63,7 +67,7 @@ export const PRODUCT_BASE_URL =
 export const CLOUD_BASE_URL =
   import.meta.env.VITE_CLOUD_API_URL || import.meta.env.VITE_CLOUD_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
 
-const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";
+// const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";
 
 // ------------------- UTILS -------------------
 const getErrorMessage = (err) => {
@@ -204,7 +208,7 @@ export const cartService = {
   },
 };
 
-<<<<<<< HEAD
+// <<<<<<< HEAD
 // ------------------- REVENUE / DASHBOARD SERVICE -------------------
 export const revenueService = {
   getWeeklyRevenue: async () => {
@@ -216,9 +220,9 @@ export const revenueService = {
 };
 
 // Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
-=======
+
 // direct cart-service fallback
->>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
+// >>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
 const getCartDirectly = async (userId, sessionId) => {
   try {
     const params = new URLSearchParams();

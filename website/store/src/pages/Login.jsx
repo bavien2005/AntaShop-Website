@@ -94,14 +94,9 @@ export default function Login() {
       const role = payload.role;
 
       // lưu token qua context (login) và localStorage (login implementation của bạn xử lý)
-      login(accessToken, refreshToken);
-      
-      try {
-        await mergeGuestToUser();   // 👈 gọi BE /api/cart/merge
-        await refreshCart();        // 👈 load lại giỏ theo userId
-      } catch (e) {
-        console.error('Merge / refresh cart after login error:', e);
-      }
+      // lưu token qua context (login) và localStorage (login implementation của bạn xử lý)
+      // AWAIT để đảm bảo AuthContext đã set user / localStorage trước khi merge
+      const loggedUser = await login(accessToken, refreshToken);
       // cố gắng decode token để lấy role nếu backend chưa trả role trực tiếp
       let userRole = role;
       try {

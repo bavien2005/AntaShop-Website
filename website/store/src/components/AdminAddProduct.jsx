@@ -1,9 +1,23 @@
 // src/components/AdminAddProduct.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import cloudApi, { uploadMultipleToCloud } from '../services/cloud';
-import { products as adminProductService } from '../services';
+// import { products as adminProductService } from '../services';
+import adminProductService from '../services/admin/productService';
+
 import GlobalLoader from './GlobalLoader';
 import './AdminAddProduct.css';
+import { listCategories, createCategory as apiCreateCategory } from '../services/categories';
+import { slugify } from '../utils/slugify';
+
+const CANON_TITLES = [
+  { key: 'men', label: 'Nam' },
+  { key: 'women', label: 'Nữ' },
+  { key: 'accessories', label: 'Phụ kiện' },
+  { key: 'kids', label: 'Kids' }
+];
+
+const toUpper = s => (s || '').toUpperCase();
+const toCap = s => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : s);
 
 export default function AdminAddProduct({ editingProduct = null, onSaved = () => { }, onCancel = () => { } }) {
   const [form, setForm] = useState({
@@ -12,45 +26,75 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
     description: '',
     price: '',
     totalStock: '',
-    category: '',
+    category: null,              // object {id,name,slug,title}
     images: [],
     thumbnail: ''
   });
-  const [newCategory, setNewCategory] = useState('');
+
   const [variants, setVariants] = useState([]);
   const [loading, setLoading] = useState(false);
   const [globalLoadingText, setGlobalLoadingText] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('');
   const fileRef = useRef(null);
 
-  const [categories, setCategories] = useState([
-    'Giày Bóng Rổ',
-    'Giày Chạy Bộ',
-    'Giày Lifestyle',
-    'Áo Thun',
-    'Áo Khoác',
-    'Quần Short',
-    'Quần Dài',
-    'Phụ Kiện'
-  ]);
+  const [categories, setCategories] = useState([]);   // [{id,name,slug,title}]
+  const [titleFilter, setTitleFilter] = useState('men'); // nhóm đang chọn (select)
+  const [newCategory, setNewCategory] = useState('');    // tạo nhanh category mới theo group
 
-  // --------------------- HANDLE EDITING PRODUCT ---------------------
+  // ---------- LOAD CATEGORIES ----------
   useEffect(() => {
-    if (editingProduct) {
-      // set selected category: prefer name, else fallback to categoryId (string)
-      if (editingProduct.category && categories.includes(editingProduct.category)) {
-        setSelectedCategory(editingProduct.category);
-        onChange('category', editingProduct.category);
-      } else if (editingProduct.categoryId !== undefined && editingProduct.categoryId !== null) {
-        // nếu bạn có API categories dạng [{id, name}] hãy map id->name ở đây
-        // tạm thời set the input to the id as string so user sees something:
-        onChange('category', String(editingProduct.categoryId));
-        setSelectedCategory(String(editingProduct.categoryId));
+    (async () => {
+      try {
+        const page = await listCategories({ page: 0, size: 500 });
+        setCategories(Array.isArray(page?.content) ? page.content : []);
+      } catch (e) {
+        console.warn('load categories failed', e);
       }
-    }
-  }, [editingProduct]);
+    })();
+  }, []);
 
-  // --------------------- CLEANUP FILE PREVIEWS & MAP EDITING ---------------------
+  // ---------- MAP CATEGORY KHI EDIT ----------
+  // useEffect(() => {
+  //   if (!editingProduct) return;
+  //   if (!categories.length) return;
+
+  //   const bySlug = editingProduct.categorySlug
+  //     ? categories.find(c => c.slug === editingProduct.categorySlug)
+  //     : null;
+  //   const byName = !bySlug && editingProduct.category
+  //     ? categories.find(c => c.name === editingProduct.category)
+  //     : null;
+
+  //   const found = bySlug || byName || null;
+  //   if (found) {
+  //     onChange('category', found);
+  //     const t = String(found.title || '').toLowerCase();
+  //     if (t && CANON_TITLES.some(x => x.key === t)) setTitleFilter(t);
+  //   }
+  // }, [editingProduct, categories]);
+  useEffect(() => {
+    if (!editingProduct) return;
+    if (!categories.length) return;
+
+    const byId = editingProduct.categoryId
+      ? categories.find(c => Number(c.id) === Number(editingProduct.categoryId))
+      : null;
+    const bySlug = !byId && editingProduct.categorySlug
+      ? categories.find(c => c.slug === editingProduct.categorySlug)
+      : null;
+    const byName = !byId && !bySlug && editingProduct.category
+      ? categories.find(c => c.name === editingProduct.category)
+      : null;
+
+    const found = byId || bySlug || byName || null;
+    if (found) {
+      onChange('category', found);
+      const t = String(found.title || '').toLowerCase();
+      if (t && CANON_TITLES.some(x => x.key === t)) setTitleFilter(t);
+    }
+  }, [editingProduct, categories]);
+
+
+  // ---------- RESET / MAP EDIT ----------
   useEffect(() => {
     if (!editingProduct) {
       setForm({
@@ -59,21 +103,19 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         description: '',
         price: '',
         totalStock: '',
-        category: '',
+        category: null,
         images: [],
         thumbnail: ''
       });
       setVariants([]);
-      setSelectedCategory('');
       return;
     }
 
     try {
-      if (editingProduct.category && !categories.includes(editingProduct.category)) {
-        setCategories(prev => [editingProduct.category, ...prev]);
-      }
+      const imgs = Array.isArray(editingProduct.images)
+        ? editingProduct.images
+        : (editingProduct.images ? [editingProduct.images] : []);
 
-      const imgs = Array.isArray(editingProduct.images) ? editingProduct.images : (editingProduct.images ? [editingProduct.images] : []);
       const mappedImages = imgs.map((url, idx) => ({
         src: typeof url === 'string' ? url : (url?.url || url?.fileUrl || url?.path || ''),
         file: null,
@@ -88,7 +130,6 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         description: editingProduct.description || prev.description,
         price: editingProduct.price !== undefined && editingProduct.price !== null ? String(editingProduct.price) : prev.price,
         totalStock: editingProduct.totalStock !== undefined && editingProduct.totalStock !== null ? String(editingProduct.totalStock) : prev.totalStock,
-        category: editingProduct.category || prev.category,
         images: mappedImages,
         thumbnail: editingProduct.thumbnail || (mappedImages[0]?.src || prev.thumbnail || '')
       }));
@@ -100,15 +141,11 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
           if (!files.length) return;
 
           const urlMap = new Map(files.map(f => [String(f.url), f]));
-
           const filenameMap = new Map();
           files.forEach(f => {
-            try {
-              const url = String(f.url || '');
-              const parts = url.split('/');
-              const tail = parts[parts.length - 1];
-              if (tail) filenameMap.set(tail, f);
-            } catch (e) { /* ignore */ }
+            const parts = String(f.url || '').split('/');
+            const tail = parts[parts.length - 1];
+            if (tail) filenameMap.set(tail, f);
           });
 
           setForm(prev => {
@@ -116,28 +153,18 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
             const merged = base.map(img => {
               if (!img) return img;
               const exact = urlMap.get(String(img.src));
-              if (exact) {
-                return { ...img, id: exact.id ?? exact._id ?? img.id, isMain: Boolean(exact.isMain) ?? img.isMain };
-              }
+              if (exact) return { ...img, id: exact.id ?? exact._id ?? img.id, isMain: Boolean(exact.isMain) ?? img.isMain };
               const tail = String(img.src || '').split('/').pop();
-              const fallbackMeta = filenameMap.get(tail);
-              if (fallbackMeta) {
-                return { ...img, id: fallbackMeta.id ?? fallbackMeta._id ?? img.id, isMain: Boolean(fallbackMeta.isMain) ?? img.isMain };
-              }
+              const fb = filenameMap.get(tail);
+              if (fb) return { ...img, id: fb.id ?? fb._id ?? img.id, isMain: Boolean(fb.isMain) ?? img.isMain };
               return img;
             });
-
             if (!merged.some(m => m && m.isMain) && merged.length) merged[0].isMain = true;
-
             const mainImg = merged.find(m => m && m.isMain);
             const thumbnail = mainImg?.src || prev.thumbnail || '';
-
             return { ...prev, images: merged, thumbnail };
           });
-
-        } catch (e) {
-          console.warn('Không thể lấy file metadata từ cloud để merge ids:', e);
-        }
+        } catch { }
       })();
 
       const mappedVariants = Array.isArray(editingProduct.variants) ? editingProduct.variants.map((v) => ({
@@ -149,44 +176,29 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         stock: (v.stock ?? v.quantity ?? 0) !== undefined ? String(v.stock ?? v.quantity ?? 0) : '',
         attributes: v.attributes ? { ...v.attributes } : {}
       })) : [];
-
       setVariants(mappedVariants);
-      setSelectedCategory(editingProduct.category || '');
     } catch (e) {
       console.warn('Error mapping editingProduct into form', e);
     }
   }, [editingProduct]);
 
-  // --------------------- FORM HELPERS ---------------------
+  // ---------- HELPERS ----------
   const onChange = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   const triggerFile = () => fileRef.current?.click();
 
   const handleImageUpload = e => {
     const files = [...(e.target.files || [])];
     if (!files.length) return;
-
-    const previews = files.map(f => ({
-      src: URL.createObjectURL(f),
-      file: f,
-      id: null,
-      isMain: false
-    }));
-
+    const previews = files.map(f => ({ src: URL.createObjectURL(f), file: f, id: null, isMain: false }));
     setForm(prev => {
-      if (!prev.images.some(i => i.isMain) && previews.length)
-        previews[0].isMain = true;
-
+      if (!prev.images.some(i => i.isMain) && previews.length) previews[0].isMain = true;
       return { ...prev, images: [...prev.images, ...previews] };
     });
-
     e.target.value = '';
   };
 
   const setMainImage = index =>
-    setForm(prev => ({
-      ...prev,
-      images: prev.images.map((img, i) => ({ ...img, isMain: i === index }))
-    }));
+    setForm(prev => ({ ...prev, images: prev.images.map((img, i) => ({ ...img, isMain: i === index })) }));
 
   const removeImage = index =>
     setForm(prev => {
@@ -195,59 +207,60 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
       return { ...prev, images };
     });
 
-  // --------------------- VARIANTS ---------------------
-  const addVariant = () =>
-    setVariants(prev => [...prev, { id: `v-${Date.now()}`, sku: '', size: '', color: '', price: '', stock: '', attributes: {} }]);
+  // ---------- VARIANTS ----------
+  const addVariant = () => setVariants(prev => [...prev, { id: `v-${Date.now()}`, sku: '', size: '', color: '', price: '', stock: '', attributes: {} }]);
+  const updateVariant = (i, key, v) => setVariants(prev => prev.map((row, idx) => idx === i ? { ...row, [key]: v } : row));
+  const updateVariantAttribute = (i, key, v) => setVariants(prev => prev.map((row, idx) => idx !== i ? row : { ...row, attributes: { ...row.attributes, [key]: v || undefined } }));
+  const removeVariant = i => setVariants(prev => prev.filter((_, idx) => idx !== i));
 
-  const updateVariant = (i, key, v) =>
-    setVariants(prev => prev.map((row, idx) => idx === i ? { ...row, [key]: v } : row));
-
-  const updateVariantAttribute = (i, key, v) =>
-    setVariants(prev => prev.map((row, idx) =>
-      idx !== i ? row : { ...row, attributes: { ...row.attributes, [key]: v || undefined } }
-    ));
-
-  const removeVariant = i =>
-    setVariants(prev => prev.filter((_, idx) => idx !== i));
-
-  // --------------------- VALIDATION ---------------------
+  // ---------- VALIDATION ----------
   const validate = () => {
     if (!form.name) return alert('Nhập tên sản phẩm');
     if (!form.category) return alert('Chọn danh mục');
-
     if (variants.length === 0) {
       if (!form.price) return alert('Nhập giá');
       if (!form.totalStock) return alert('Nhập tổng kho');
     }
-
     for (let i = 0; i < variants.length; i++) {
       if (!variants[i].price) return alert(`Variant #${i + 1}: thiếu giá`);
       if (!variants[i].stock) return alert(`Variant #${i + 1}: thiếu stock`);
     }
-
     return true;
   };
+  // ---------- CREATE CATEGORY SMART (retry theo casing) ----------
+  const createCategorySmart = async (name) => {
+    const slug = slugify(name);
+    const tries = [
+      titleFilter,                 // men
+      toUpper(titleFilter),        // MEN
+      toCap(titleFilter)           // Men
+    ];
+    let lastErr;
+    for (const t of tries) {
+      try {
+        const created = await apiCreateCategory({ name, slug, title: t, description: '' });
+        return created;
+      } catch (err) {
+        lastErr = err;
+        // tiếp tục thử casing khác
+      }
+    }
+    const msg = lastErr?.response?.data?.message || lastErr?.message || 'Tạo danh mục thất bại';
+    throw new Error(msg);
+  };
 
-  // --------------------- HANDLE SUBMIT (IMPROVED) ---------------------
+  // ---------- SUBMIT ----------
   const handleSubmit = async () => {
     if (!validate()) return;
 
     setLoading(true);
-    setGlobalLoadingText('Đang tạo sản phẩm...');
+    setGlobalLoadingText(editingProduct ? 'Đang cập nhật sản phẩm...' : 'Đang tạo sản phẩm...');
 
     try {
-      const totalStock = variants.length ? undefined : Number(form.totalStock);
-
       const payloadVariants = (variants || []).map(v => {
-        // only include numeric id for existing server variants
-        const idVal = v?.id;
-        let idToSend = undefined;
-        if (idVal !== undefined && idVal !== null) {
-          // allow numeric or numeric-string
-          const s = String(idVal);
-          if (/^\d+$/.test(s)) idToSend = Number(s);
-        }
-        const mapped = {
+        const s = String(v?.id ?? '');
+        const idToSend = /^\d+$/.test(s) ? Number(s) : undefined;
+        return {
           ...(idToSend !== undefined ? { id: idToSend } : {}),
           sku: v.sku || undefined,
           price: Number(v.price ?? 0),
@@ -256,7 +269,6 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
           color: v.color || null,
           attributes: Object.keys(v.attributes || {}).length ? v.attributes : null
         };
-        return mapped;
       });
 
       const payload = {
@@ -264,12 +276,13 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         brand: form.brand || null,
         description: form.description || "",
         price: variants.length ? undefined : Number(form.price),
-        categories: form.category ? [form.category] : undefined,
+        // BE của bạn dùng categoryId (không phải slug):
+        categoryId: form.category?.id || undefined,
         variants: payloadVariants,
         totalStock: variants.length ? undefined : Number(form.totalStock),
       };
 
-      // create/update product
+
       const res = editingProduct
         ? await adminProductService.updateProduct(editingProduct.id, payload)
         : await adminProductService.createProduct(payload);
@@ -278,9 +291,8 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
       const productId = res.data?.id;
       if (!productId) throw new Error("Product ID not returned");
 
-      // -------------------- UPLOAD IMAGES --------------------
+      // ---------- UPLOAD IMAGES ----------
       const imagesSnapshot = Array.isArray(form.images) ? [...form.images] : [];
-
       const pendingIndexed = imagesSnapshot
         .map((img, idx) => ({ img, idx }))
         .filter(x => x.img && x.img.file)
@@ -288,10 +300,8 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
 
       if (pendingIndexed.length) {
         setGlobalLoadingText('Đang upload ảnh lên Cloud...');
-
         const filesToUpload = pendingIndexed.map(p => p.file);
 
-        // uploaderId = user.id
         let uploaderId = 0;
         try {
           const user = JSON.parse(localStorage.getItem("anta_user") || "null");
@@ -300,95 +310,35 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
 
         const uploadedData = await uploadMultipleToCloud(filesToUpload, { uploaderId });
         const uploadedArr = Array.isArray(uploadedData) ? uploadedData : (uploadedData?.data || []);
-
-        // normalize uploaded metadata -> id + url
         const normalizedUploaded = uploadedArr.map(u => ({
           id: u?.id ?? u?._id ?? u?.fileId ?? null,
-          url: u?.url ?? u?.secure_url ?? u?.fileUrl ?? u?.path ?? null,
-          raw: u
+          url: u?.url ?? u?.secure_url ?? u?.fileUrl ?? u?.path ?? null
         }));
 
-        console.log('[DEBUG] normalizedUploaded:', normalizedUploaded);
-
-        // map uploaded results back into imagesSnapshot by formIndex
         const newImages = imagesSnapshot.slice();
         normalizedUploaded.forEach((up, i) => {
           const mapping = pendingIndexed[i];
           if (!mapping) return;
           const idx = mapping.formIndex;
           const existing = newImages[idx] || {};
-          newImages[idx] = {
-            ...existing,
-            src: up.url || existing.src,
-            id: up.id || existing.id || null,
-            file: null,
-            isMain: existing.isMain || mapping.isMain
-          };
+          newImages[idx] = { ...existing, src: up.url || existing.src, id: up.id || existing.id || null, file: null, isMain: existing.isMain || mapping.isMain };
         });
 
-        // collect finalIds from newImages
         const finalIds = newImages.map(img => img && img.id).filter(Boolean);
-
-        // determine mainId robustly
         let mainId = null;
         const mainIndexInNew = newImages.findIndex(img => img && img.isMain);
-        if (mainIndexInNew !== -1 && newImages[mainIndexInNew]?.id) {
-          mainId = newImages[mainIndexInNew].id;
-        } else {
-          for (let i = 0; i < pendingIndexed.length; i++) {
-            if (pendingIndexed[i].isMain) {
-              const formIdx = pendingIndexed[i].formIndex;
-              const uploadedMeta = normalizedUploaded[i];
-              if (uploadedMeta && uploadedMeta.id) {
-                mainId = uploadedMeta.id;
-                break;
-              } else if (newImages[formIdx] && newImages[formIdx].id) {
-                mainId = newImages[formIdx].id;
-                break;
-              }
-            }
-          }
-        }
+        if (mainIndexInNew !== -1 && newImages[mainIndexInNew]?.id) mainId = newImages[mainIndexInNew].id;
         if (!mainId && finalIds.length) mainId = finalIds[0];
 
-        // update local form state with newImages
         setForm(prev => ({ ...prev, images: newImages }));
 
-        // TRY: update cloud metadata linking files -> product
         let cloudUpdateOk = false;
         try {
-          console.log('[DEBUG] calling cloudApi.put /api/cloud/update-product', { ids: finalIds, mainId });
           const updateResp = await cloudApi.put(`/api/cloud/update-product/${productId}`, { ids: finalIds, mainId });
-          console.log('[DEBUG] cloud update-product response:', updateResp?.data);
           if (updateResp?.status === 200 || updateResp?.data) cloudUpdateOk = true;
-        } catch (e) {
-          console.warn('[DEBUG] cloud update-product failed', e?.response?.data || e?.message);
-        }
+        } catch { }
 
-        // If cloud update ok, try product sync helper or fetch product
         if (cloudUpdateOk) {
-          try {
-            let sync = null;
-            if (typeof adminProductService.syncProductImages === 'function') {
-              sync = await adminProductService.syncProductImages(productId);
-            } else {
-              sync = await adminProductService.getProduct(productId);
-            }
-            console.log('[DEBUG] sync fallback result:', sync);
-            if (sync?.success && sync.data) {
-              onSaved(sync.data);
-              alert("Lưu thành công");
-              return;
-            } console.log('[DEBUG] syncProductImages result:', sync);
-            if (sync?.success && sync.data) {
-              onSaved(sync.data);
-              alert("Lưu thành công");
-              return;
-            }
-          } catch (e) {
-            console.warn('[DEBUG] syncProductImages error', e?.response?.data || e?.message || e);
-          }
-
           try {
             const refreshed = await adminProductService.getProduct(productId);
             if (refreshed?.success && refreshed.data) {
@@ -396,53 +346,26 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
               alert("Lưu thành công");
               return;
             }
-          } catch (e) {
-            console.warn('[DEBUG] refresh after cloud update failed', e?.response?.data || e?.message || e);
-          }
+          } catch { }
         }
 
-        // FALLBACK: update product directly with image URLs (some backends expect URLs)
-        const finalImageUrls = newImages.map(img => {
-          if (img?.id) {
-            const found = normalizedUploaded.find(u => String(u.id) === String(img.id));
-            if (found?.url) return found.url;
-          }
-          return img?.src || null;
-        }).filter(Boolean);
-
+        // fallback update theo URL
+        const finalImageUrls = newImages.map(img => img?.src).filter(Boolean);
         const thumbnailUrl = (newImages.find(img => img && img.isMain)?.src) || finalImageUrls[0] || '';
-
-        console.log('[DEBUG] fallback finalImageUrls, thumbnailUrl:', finalImageUrls, thumbnailUrl);
-
         if (finalImageUrls.length) {
           try {
-            console.log('[DEBUG] calling cloudApi.put /api/product/update (fallback)', { images: finalImageUrls, thumbnail: thumbnailUrl });
-            const productUpdateResp = await cloudApi.put(`/api/product/update/${productId}`, {
-              images: finalImageUrls,
-              thumbnail: thumbnailUrl
-            });
-            console.log('[DEBUG] product update (fallback) response:', productUpdateResp?.data);
-            try {
-              const refreshed = await adminProductService.getProduct(productId);
-              onSaved(refreshed.data);
-              alert("Lưu thành công");
-              return;
-            } catch (e) {
-              console.warn('[DEBUG] getProduct after fallback update failed', e?.response?.data || e?.message || e);
-            }
-          } catch (e) {
-            console.warn('[DEBUG] fallback product update failed', e?.response?.data || e?.message || e);
-          }
+            await cloudApi.put(`/api/product/update/${productId}`, { images: finalImageUrls, thumbnail: thumbnailUrl });
+            const refreshed = await adminProductService.getProduct(productId);
+            onSaved(refreshed.data);
+            alert("Lưu thành công");
+            return;
+          } catch { }
         }
 
-        // as last resort
-        console.warn('[DEBUG] image sync fell back to returning product response without synced images');
         onSaved(res.data);
         alert("Lưu thành công (hình ảnh có thể chưa xuất hiện ngay)");
         return;
-
       } else {
-        // No newly uploaded files. But user may have changed which image is main.
         const finalIds = form.images.map(img => img && img.id).filter(Boolean);
         let mainId = null;
         const mainIndex = form.images.findIndex(img => img && img.isMain);
@@ -452,42 +375,30 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         if (finalIds.length) {
           try {
             await cloudApi.put(`/api/cloud/update-product/${productId}`, { ids: finalIds, mainId });
-            const sync = await adminProductService.syncProductImages?.(productId);
-            if (sync?.success && sync.data) {
-              onSaved(sync.data);
-              alert("Lưu thành công");
-              return;
-            } else {
-              const refreshed = await adminProductService.getProduct(productId);
-              onSaved(refreshed.data);
-              alert("Lưu thành công");
-              return;
-            }
-          } catch (e) {
-            console.warn('update-product for existing images failed', e);
             const refreshed = await adminProductService.getProduct(productId);
             onSaved(refreshed.data);
-            alert("Lưu thành công (hình ảnh có thể chưa xuất hiện ngay)");
+            alert("Lưu thành công");
             return;
-          }
-        } else {
-          // nothing to sync (no images)
-          onSaved(res.data);
-          alert("Lưu thành công");
-          return;
+          } catch { }
         }
+
+        onSaved(res.data);
+        alert("Lưu thành công");
+        return;
       }
 
     } catch (err) {
       console.error(err);
-      alert("Lỗi: " + (err?.message || err));
+      alert("Lỗi: " + (err?.response?.data?.message || err?.message || err));
     } finally {
       setLoading(false);
       setGlobalLoadingText(null);
     }
   };
 
-  // -------------------- RENDER --------------------
+  // ---------- VIEW ----------
+  const filteredCategories = categories.filter(c => String(c.title || '').toLowerCase() === titleFilter);
+
   return (
     <div className="add-product-component">
       <GlobalLoader show={!!globalLoadingText} text={globalLoadingText || "Đang xử lý..."} />
@@ -501,39 +412,33 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
         <button className="cancel-add-btn" onClick={onCancel} disabled={loading}>← Quay lại</button>
       </div>
 
-      {/* GRID */}
       <div className="add-product-grid">
         {/* LEFT */}
         <div className="product-info-section">
           <div className="section-card">
             <h3 className="section-card-title">Thông Tin Cơ Bản</h3>
 
-            {/* TITLE */}
             <div className="form-input-group">
               <label className="input-label required">Tên Sản Phẩm</label>
               <input className="form-text-input" value={form.name} onChange={e => onChange("name", e.target.value)} />
             </div>
 
-            {/* BRAND */}
             <div className="form-input-group">
               <label className="input-label">Thương hiệu</label>
               <input className="form-text-input" value={form.brand} onChange={e => onChange("brand", e.target.value)} />
             </div>
 
-            {/* DESCRIPTION */}
             <div className="form-input-group">
               <label className="input-label">Mô tả</label>
               <textarea className="form-textarea-input" value={form.description} onChange={e => onChange("description", e.target.value)} />
             </div>
 
-            {/* PRICE + STOCK */}
             {variants.length === 0 && (
               <div className="form-row-grid">
                 <div className="form-input-group">
                   <label className="input-label required">Giá bán (VNĐ)</label>
                   <input className="form-text-input" type="number" value={form.price} onChange={e => onChange("price", e.target.value)} />
                 </div>
-
                 <div className="form-input-group">
                   <label className="input-label required">Tổng kho</label>
                   <input className="form-text-input" type="number" value={form.totalStock} onChange={e => onChange("totalStock", e.target.value)} />
@@ -541,7 +446,6 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
               </div>
             )}
 
-            {/* IMAGES */}
             <div className="form-input-group">
               <label className="input-label">Hình ảnh sản phẩm</label>
               <div className="image-drop" onClick={triggerFile}>
@@ -573,12 +477,9 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
               )}
             </div>
 
-            {/* VARIANTS */}
             <div className="section-divider" />
             <h4>Variants (Size / Màu / SKU)</h4>
-
             <button className="add-variant-btn" onClick={addVariant}>+ Thêm Variant</button>
-
             {variants.map((v, i) => (
               <div key={v.id} className="variant-card">
                 <div className="variant-row">
@@ -586,13 +487,11 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
                   <input placeholder="Size" value={v.size} onChange={e => updateVariant(i, 'size', e.target.value)} />
                   <input placeholder="Màu" value={v.color} onChange={e => updateVariant(i, 'color', e.target.value)} />
                 </div>
-
                 <div className="variant-row">
                   <input placeholder="Giá" type="number" value={v.price} onChange={e => updateVariant(i, 'price', e.target.value)} />
                   <input placeholder="Stock" type="number" value={v.stock} onChange={e => updateVariant(i, 'stock', e.target.value)} />
                   <button className="variant-remove-btn" onClick={() => removeVariant(i)}>Xóa</button>
                 </div>
-
                 <div className="variant-row">
                   <input placeholder="material (leather…)" value={v.attributes?.material || ''} onChange={e => updateVariantAttribute(i, 'material', e.target.value)} />
                 </div>
@@ -601,65 +500,108 @@ export default function AdminAddProduct({ editingProduct = null, onSaved = () =>
           </div>
         </div>
 
-        {/* CATEGORY RIGHT SIDE */}
+        {/* RIGHT */}
         <div className="category-section-sidebar">
           <div className="section-card">
-            <h3 className="section-card-title">Danh Mục</h3>
+            <h3 className="section-card-title">Nhóm (title) & Danh mục</h3>
 
+            {/* SELECT NHÓM (TITLE) */}
             <div className="form-input-group">
-              <label className="input-label">Danh mục đã chọn</label>
+              <label className="input-label">Chọn nhóm (title)</label>
+              <select
+                className="form-text-input"
+                value={titleFilter}
+                onChange={(e) => setTitleFilter(e.target.value)}
+              >
+                {CANON_TITLES.map(t => (
+                  <option key={t.key} value={t.key}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* TẠO NHANH DANH MỤC */}
+            <div className="form-input-group">
+              <label className="input-label">Tạo danh mục mới (thuộc nhóm đang chọn)</label>
               <div className="add-category-row">
                 <input
                   type="text"
                   className="form-text-input"
-                  placeholder="Nhập danh mục mới…"
+                  placeholder={`Nhập danh mục mới cho ${CANON_TITLES.find(x => x.key === titleFilter)?.label || titleFilter}…`}
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      if (newCategory.trim() !== "") {
-                        setCategories((prev) => [...prev, newCategory.trim()]);
-                        setNewCategory("");
-                      }
+                  onKeyDown={async (e) => {
+                    if (e.key !== 'Enter') return;
+                    const name = newCategory.trim();
+                    if (!name) return;
+                    try {
+                      const created = await createCategorySmart(name);
+                      setCategories(prev => [created, ...prev]);
+                      onChange('category', created);
+                      setNewCategory('');
+                      try { localStorage.setItem('anta_categories_version', String(Date.now())); } catch { }
+                    } catch (err) {
+                      alert(err.message || "Tạo danh mục thất bại");
                     }
                   }}
                 />
                 <button
                   type="button"
                   className="add-category-btn"
-                  onClick={() => {
-                    if (newCategory.trim() !== "") {
-                      setCategories((prev) => [...prev, newCategory.trim()]);
-                      setNewCategory("");
+                  onClick={async () => {
+                    const name = newCategory.trim();
+                    if (!name) return;
+                    try {
+                      const created = await createCategorySmart(name);
+                      setCategories(prev => [created, ...prev]);
+                      onChange('category', created);
+                      setNewCategory('');
+                      try { localStorage.setItem('anta_categories_version', String(Date.now())); } catch { }
+                    } catch (err) {
+                      alert(err.message || "Tạo danh mục thất bại");
                     }
                   }}
                 >
                   + Thêm
                 </button>
               </div>
-              <input className="form-text-input" readOnly value={form.category} placeholder="Chọn danh mục bên dưới…" />
+            </div>
+
+            {/* DANH MỤC THEO NHÓM */}
+            <div className="form-input-group">
+              <label className="input-label">Danh mục theo nhóm đang chọn</label>
+              <input
+                className="form-text-input"
+                readOnly
+                value={form.category?.name || ''}
+                placeholder="Chưa chọn danh mục"
+              />
             </div>
 
             <div className="category-selection-list">
-              {categories.map((cat, idx) => (
+              {filteredCategories.length === 0 && (
+                <div style={{ padding: 8, opacity: 0.7 }}>Chưa có danh mục cho nhóm này.</div>
+              )}
+              {filteredCategories.map((cat) => (
                 <div
                   className="category-selection-item"
-                  key={idx}
+                  key={cat.id ?? cat.slug}
                   onClick={() => onChange('category', cat)}
                   style={{ cursor: 'pointer' }}
                 >
                   <span className="category-item-icon">
-                    {form.category === cat ? '●' : '○'}
+                    {form.category?.slug === cat.slug ? '●' : '○'}
                   </span>
-                  <span className="category-item-name">{cat}</span>
+                  <span className="category-item-name">{cat.name}</span>
 
                   <button
                     type="button"
                     className="delete-category-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCategories((prev) => prev.filter((c) => c !== cat));
-                      if (form.category === cat) onChange('category', '');
+                      setCategories(prev => prev.filter(c => (c.id ?? c.slug) !== (cat.id ?? cat.slug)));
+                      if (form.category?.slug === cat.slug) onChange('category', null);
                     }}
                   >
                     ✕

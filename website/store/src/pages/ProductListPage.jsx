@@ -1,14 +1,17 @@
-// src/pages/ProductListPage.jsx
+// // src/pages/ProductListPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Layout } from "../components";
 import { products as productApi } from "../services";
 import { useCart } from "../contexts";
 import "./ProductListPage.css";
 
+const TITLE_LABELS = { men: "Nam", women: "Nữ", accessories: "Phụ kiện", kids: "Kids" };
+
 export default function ProductListPage() {
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { title, slug } = useParams();
 
   // UI state
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -25,27 +28,43 @@ export default function ProductListPage() {
   const placeholder =
     "https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600";
 
-  // fetch products
+  // đồng bộ selectedCategory theo slug trong URL (nếu có)
+  useEffect(() => {
+    if (slug) setSelectedCategory(slug.toLowerCase());
+    else setSelectedCategory("all");
+  }, [slug]);
+
+  // fetch products (ưu tiên filter từ BE theo title/slug)
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await productApi.getProducts();
+        const serverFilter = {};
+        if (title) serverFilter.title = String(title).toLowerCase();
+        if (slug) serverFilter.categorySlug = String(slug).toLowerCase();
+
+        const res = await productApi.getProducts(serverFilter);
         const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+
         if (!mounted) return;
 
-        // Chuẩn hóa một chút để render ổn định
         const norm = list.map((p) => ({
           ...p,
           images: Array.isArray(p.images) ? p.images : [],
           thumbnail: p.thumbnail || (Array.isArray(p.images) ? p.images[0] : null),
           variants: Array.isArray(p.variants) ? p.variants : [],
           price: Number(p.price || 0),
+          // tên danh mục dạng text (nếu BE có)
           category: p.category || "",
+          // ⚠️ đảm bảo có categorySlug để dùng khi BE chưa trả:
+          categorySlug: p.categorySlug || p.slug || (slug ? String(slug).toLowerCase() : ""),
+          // nhóm lớn (men/women/...)
+          title: p.title || p.groupTitle || "",
           name: p.name || p.productName || "Sản phẩm",
         }));
+
         setAllProducts(norm);
       } catch (e) {
         if (mounted) setError(e?.message || "Lỗi tải sản phẩm");
@@ -54,7 +73,7 @@ export default function ProductListPage() {
       }
     })();
     return () => (mounted = false);
-  }, []);
+  }, [title, slug]);
 
   // ---- helpers ----
   const formatPrice = (n) =>
@@ -77,19 +96,18 @@ export default function ProductListPage() {
     return Array.from(set);
   };
 
-  // derive all sizes để hiện filter (nếu bạn muốn dùng sau: có thể đẩy ra sidebar)
   const allSizesSet = useMemo(() => {
     const set = new Set();
     allProducts.forEach((p) => productSizes(p).forEach((s) => set.add(s)));
     return set;
   }, [allProducts]);
 
-  // ---- filtering ----
+  // ---- filtering trên FE (chỉ dùng khi KHÔNG có slug từ URL) ----
   const filtered = useMemo(() => {
     let list = [...allProducts];
 
-    // category
-    if (selectedCategory !== "all") {
+    // ❗ Nếu đã gửi slug lên BE, không lọc lại theo slug ở client (tránh loại sạch do thiếu field)
+    if (!slug && selectedCategory !== "all") {
       list = list.filter(
         (p) => (p.category || "").toLowerCase() === selectedCategory.toLowerCase()
       );
@@ -106,7 +124,7 @@ export default function ProductListPage() {
       if (priceRange === "under1m") return price < 1_000_000;
       if (priceRange === "1m-2m") return price >= 1_000_000 && price <= 2_000_000;
       if (priceRange === "over2m") return price > 2_000_000;
-      return true; // all
+      return true;
     });
 
     // sorting
@@ -124,7 +142,6 @@ export default function ProductListPage() {
         list.sort((a, b) => b.name.localeCompare(a.name, "vi"));
         break;
       case "newest":
-        // nếu backend có createdAt -> ưu tiên; ở đây fallback id desc
         list.sort((a, b) => (b.createdAt || b.id || 0) - (a.createdAt || a.id || 0));
         break;
       default:
@@ -132,7 +149,7 @@ export default function ProductListPage() {
     }
 
     return list;
-  }, [allProducts, selectedCategory, selectedSize, priceRange, sortBy]);
+  }, [allProducts, selectedCategory, selectedSize, priceRange, sortBy, slug]);
 
   const handleProductClick = (productId) => navigate(`/product/${productId}`);
 
@@ -149,7 +166,13 @@ export default function ProductListPage() {
     alert("Đã thêm vào giỏ hàng!");
   };
 
-  // ---- render ----
+  // tiêu đề động
+  const pageTitle = slug
+    ? `Danh mục: ${slug}`
+    : title
+      ? `Bộ sưu tập ${TITLE_LABELS[title] || title}`
+      : "Tất Cả Sản Phẩm";
+
   return (
     <Layout>
       <div className="product-list-page">
@@ -160,14 +183,30 @@ export default function ProductListPage() {
               Trang chủ
             </span>
             <span className="breadcrumb-separator">/</span>
-            <span className="breadcrumb-current">Sản phẩm</span>
+            {title && (
+              <>
+                <span
+                  className="breadcrumb-link"
+                  onClick={() => navigate(`/shop/${title}`)}
+                >
+                  {TITLE_LABELS[title] || title}
+                </span>
+                {slug && (
+                  <>
+                    <span className="breadcrumb-separator">/</span>
+                    <span className="breadcrumb-current">{slug}</span>
+                  </>
+                )}
+              </>
+            )}
+            {!title && <span className="breadcrumb-current">Sản phẩm</span>}
           </div>
         </div>
 
         {/* Header */}
         <div className="page-header">
           <div className="container">
-            <h1 className="page-title">Tất Cả Sản Phẩm</h1>
+            <h1 className="page-title">{pageTitle}</h1>
             <p className="page-subtitle">Khám phá bộ sưu tập sản phẩm chính hãng</p>
           </div>
         </div>
@@ -195,7 +234,9 @@ export default function ProductListPage() {
                           type="radio"
                           name="category"
                           value={val}
-                          checked={selectedCategory === val}
+                          // nếu đang ở URL có slug, khóa filter UI theo slug để tránh lệch
+                          disabled={!!slug}
+                          checked={slug ? slug === val : selectedCategory === val}
                           onChange={(e) => setSelectedCategory(e.target.value)}
                         />
                         <span>{label}</span>
@@ -354,9 +395,8 @@ export default function ProductListPage() {
                                 <span className="discount">
                                   -
                                   {Math.round(
-                                    ((Number(p.originalPrice) - price) /
-                                      Number(p.originalPrice)) *
-                                      100
+                                    ((Number(p.originalPrice) - price) / Number(p.originalPrice)) *
+                                    100
                                   )}
                                   %
                                 </span>

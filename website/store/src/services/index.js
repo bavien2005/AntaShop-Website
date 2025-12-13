@@ -17,7 +17,7 @@ import adminService, {
 // Exports:
 // - default export: adminService (for admin UI during dev)
 // - named exports for real api wrappers (if ./api exists) and for mock admin modules
-export default api; // hoặc export default {} nếu không muốn dùng default
+// export default api; // hoặc export default {} nếu không muốn dùng default
 
 //export default adminService;
 
