@@ -117,8 +117,7 @@ export function useCart() {
     await fetchCart();
   };
 
-  const updateQuantity = async (productId, variantId, quantity) => {
-  const updateQuantity = async (productId, variantId, quantity) => {
+  const clearCart = async () => {
     if (!cart?.id) return;
 
     const resolvedVariant =
@@ -137,20 +136,12 @@ export function useCart() {
     return updated;
   };
 
-  // ================== RESET KHI LOGOUT ==================
-  useEffect(() => {
-    const onLogout = () => {
-      console.debug("[useCart] auth:logout → reset FE cart");
-      setCart({ id: null, items: [] });
-      setHasMerged(false);
-      setSessionId(getSessionId());
-    };
+  const resetCartAfterLogout = () => {
+    setCart(null);
+    setHasMerged(false);
+  };
 
-    window.addEventListener("auth:logout", onLogout);
-    return () => window.removeEventListener("auth:logout", onLogout);
-  }, []);
-
-  return {
+  const value = {
     cart,
     loading,
     addItem,
@@ -174,6 +165,14 @@ export function useCart() {
         0
       );
     },
+    get totalPrice() {
+      return (cart?.items || []).reduce((sum, item) => {
+        const price = item.unitPrice || 0;
+        const quantity = item.quantity || 0;
+        return sum + price * quantity;
+      }, 0);
+    },
   };
-  }
+
+  return value;
 }

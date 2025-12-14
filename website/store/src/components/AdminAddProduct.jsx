@@ -1,35 +1,21 @@
-// src/components/AdminAddProduct.jsx
-import React, { useState, useEffect, useRef } from "react";
-import cloudApi, { uploadMultipleToCloud } from "../services/cloud";
-import adminProductService from "../services/admin/productService";
+//src/components/AdminAddProduct.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import cloudApi, { uploadMultipleToCloud } from '../services/cloud';
+import { products as adminProductService } from '../services';
+import GlobalLoader from './GlobalLoader';
+import './AdminAddProduct.css';
 
-import GlobalLoader from "./GlobalLoader";
-import "./AdminAddProduct.css";
-import {
-  listCategories,
-  createCategory as apiCreateCategory,
-  deleteCategory as apiDeleteCategory, // <-- thêm
-} from "../services/categories";
-import { slugify } from "../utils/slugify";
-
-const CANON_TITLES = [
-  { key: "men", label: "Nam" },
-  { key: "women", label: "Nữ" },
-  { key: "accessories", label: "Phụ kiện" },
-  { key: "kids", label: "Kids" },
-];
-
-const toUpper = (s) => (s || "").toUpperCase();
-const toCap = (s) => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : s);
-
-export default function AdminAddProduct({
-  editingProduct = null,
-  onSaved = () => { },
-  onCancel = () => { },
-
-  // ✅ THÊM để không bị "not defined"
-  onCategoryDeleted = () => { },
-}) {
+export default function AdminAddProduct({ editingProduct = null, onSaved = () => { }, onCancel = () => { } }) {
+  // const [categories, setCategories] = useState([
+  //   "Giày Bóng Rổ",
+  //   "Giày Chạy Bộ",
+  //   "Giày Lifestyle",
+  //   "Áo Thun",
+  //   "Áo Khoác",
+  //   "Quần Short",
+  //   "Quần Dài",
+  //   "Phụ Kiện"
+  // ]);
   const [form, setForm] = useState({
     name: "",
     brand: "",
@@ -40,8 +26,7 @@ export default function AdminAddProduct({
     images: [],
     thumbnail: "",
   });
-
-
+  const [newCategory, setNewCategory] = useState('');
   const [variants, setVariants] = useState([]);
   const [loading, setLoading] = useState(false);
   const [globalLoadingText, setGlobalLoadingText] = useState(null);
@@ -88,8 +73,7 @@ export default function AdminAddProduct({
     }
   }, [editingProduct, categories]);
 
-  // ---------- RESET / MAP EDIT ----------
-  // ---------- RESET / MAP EDIT ----------
+  // --------------------- CLEANUP FILE PREVIEWS ---------------------
   useEffect(() => {
     if (!editingProduct) {
       setForm({
@@ -106,13 +90,16 @@ export default function AdminAddProduct({
       return;
     }
 
+    // Nếu có editingProduct -> gán vào form, variants, images
     try {
-      const imgs = Array.isArray(editingProduct.images)
-        ? editingProduct.images
-        : editingProduct.images
-          ? [editingProduct.images]
-          : [];
+      // categories: nếu category từ product chưa có trong danh sách thì thêm vào đầu
+      if (editingProduct.category && !categories.includes(editingProduct.category)) {
+        setCategories(prev => [editingProduct.category, ...prev]);
+      }
 
+      // map images (backend thường trả mảng url)
+      // map images (backend thường trả mảng url)
+      const imgs = Array.isArray(editingProduct.images) ? editingProduct.images : (editingProduct.images ? [editingProduct.images] : []);
       const mappedImages = imgs.map((url, idx) => ({
         src:
           typeof url === "string"
@@ -135,100 +122,89 @@ export default function AdminAddProduct({
         name: editingProduct.name || prev.name,
         brand: editingProduct.brand || prev.brand,
         description: editingProduct.description || prev.description,
-        price:
-          editingProduct.price !== undefined && editingProduct.price !== null
-            ? String(editingProduct.price)
-            : prev.price,
-        totalStock:
-          editingProduct.totalStock !== undefined &&
-            editingProduct.totalStock !== null
-            ? String(editingProduct.totalStock)
-            : prev.totalStock,
+        price: editingProduct.price !== undefined && editingProduct.price !== null ? String(editingProduct.price) : prev.price,
+        totalStock: editingProduct.totalStock !== undefined && editingProduct.totalStock !== null ? String(editingProduct.totalStock) : prev.totalStock,
+        category: editingProduct.category || prev.category,
         images: mappedImages,
         thumbnail:
           editingProduct.thumbnail || mappedImages[0]?.src || prev.thumbnail || "",
       }));
 
-      // merge cloud metadata (id/isMain) when editing
-     // --- merge cloud metadata (id/isMain) when editing ---
-(async () => {
-  try {
-    const resp = await cloudApi.get(`/api/cloud/product/${editingProduct.id}`);
-    const files = Array.isArray(resp?.data) ? resp.data : [];
-    if (!files.length) return;
+      // Try to fetch file metadata from cloud and merge ids/isMain (so we have DB file ids for later update)
+      (async () => {
+        try {
+          // call cloud service to get FileMetadata[] for this product
+          const resp = await cloudApi.get(`/api/cloud/product/${editingProduct.id}`);
+          const files = Array.isArray(resp?.data) ? resp.data : [];
+          if (!files.length) return;
 
-    const urlMap = new Map(files.map((f) => [String(f.url), f]));
-    const filenameMap = new Map();
-    files.forEach((f) => {
-      const parts = String(f.url || "").split("/");
-      const tail = parts[parts.length - 1];
-      if (tail) filenameMap.set(tail, f);
-    });
+          // build lookup by exact url
+          const urlMap = new Map(files.map(f => [String(f.url), f]));
 
-    setForm((prev) => {
-      const base = Array.isArray(prev.images) ? prev.images.slice() : [];
-      const merged = base.map((img) => {
-        if (!img) return img;
+          // also try lookup by filename tail as fallback (some urls might be normalized differently)
+          const filenameMap = new Map();
+          files.forEach(f => {
+            try {
+              const url = String(f.url || '');
+              const parts = url.split('/');
+              const tail = parts[parts.length - 1];
+              if (tail) filenameMap.set(tail, f);
+            } catch (e) { /* ignore */ }
+          });
 
-        // normalize src (so sánh đúng với thumbnail)
-        const src = img.src || "";
-        const exact = urlMap.get(String(src));
-        if (exact)
-          return {
-            ...img,
-            id: exact.id ?? exact._id ?? img.id,
-            // dùng nullish coalescing thay vì Boolean(...) ?? ...
-            isMain: exact.isMain ?? img.isMain,
-          };
+          // merge into current mappedImages
+          setForm(prev => {
+            const base = Array.isArray(prev.images) ? prev.images.slice() : [];
+            const merged = base.map(img => {
+              if (!img) return img;
+              const exact = urlMap.get(String(img.src));
+              if (exact) {
+                return { ...img, id: exact.id ?? exact._id ?? img.id, isMain: Boolean(exact.isMain) ?? img.isMain };
+              }
+              // fallback: try match by filename tail
+              const tail = String(img.src || '').split('/').pop();
+              const fallbackMeta = filenameMap.get(tail);
+              if (fallbackMeta) {
+                return { ...img, id: fallbackMeta.id ?? fallbackMeta._id ?? img.id, isMain: Boolean(fallbackMeta.isMain) ?? img.isMain };
+              }
+              return img;
+            });
 
-        const tail = String(src).split("/").pop();
-        const fb = filenameMap.get(tail);
-        if (fb)
-          return {
-            ...img,
-            id: fb.id ?? fb._id ?? img.id,
-            isMain: fb.isMain ?? img.isMain,
-          };
+            // ensure exactly one isMain (prefer existing main)
+            if (!merged.some(m => m && m.isMain) && merged.length) merged[0].isMain = true;
 
-        return img;
-      });
+            // update thumbnail consistent with isMain
+            const mainImg = merged.find(m => m && m.isMain);
+            const thumbnail = mainImg?.src || prev.thumbnail || '';
 
-      if (!merged.some((m) => m && m.isMain) && merged.length) merged[0].isMain = true;
-      const mainImg = merged.find((m) => m && m.isMain);
-      const thumbnail = mainImg?.src || prev.thumbnail || "";
-      return { ...prev, images: merged, thumbnail };
-    });
-  } catch (e) {
-    // optional: console.warn("cloud metadata merge failed", e);
-  }
-})();
+            return { ...prev, images: merged, thumbnail };
+          });
 
-        
+        } catch (e) {
+          console.warn('Không thể lấy file metadata từ cloud để merge ids:', e);
+        }
+      })();
 
-      const mappedVariants = Array.isArray(editingProduct.variants)
-        ? editingProduct.variants.map((v) => ({
-          id: v.id ?? `v-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          sku: v.sku ?? v.SKU ?? "",
-          size: v.size ?? (v.attributes && v.attributes.size) ?? "",
-          color: v.color ?? (v.attributes && v.attributes.color) ?? "",
-          price:
-            v.price !== undefined && v.price !== null ? String(v.price) : "",
-          stock:
-            (v.stock ?? v.quantity ?? 0) !== undefined
-              ? String(v.stock ?? v.quantity ?? 0)
-              : "",
-          attributes: v.attributes ? { ...v.attributes } : {},
-        }))
-        : [];
+
+      // map variants -> dùng chuỗi cho input values
+      const mappedVariants = Array.isArray(editingProduct.variants) ? editingProduct.variants.map((v) => ({
+        id: v.id ?? (`v-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`),
+        sku: v.sku ?? v.SKU ?? '',
+        size: v.size ?? (v.attributes && v.attributes.size) ?? '',
+        color: v.color ?? (v.attributes && v.attributes.color) ?? '',
+        price: v.price !== undefined && v.price !== null ? String(v.price) : '',
+        stock: (v.stock ?? v.quantity ?? 0) !== undefined ? String(v.stock ?? v.quantity ?? 0) : '',
+        attributes: v.attributes ? { ...v.attributes } : {}
+      })) : [];
+
       setVariants(mappedVariants);
     } catch (e) {
       console.warn("Error mapping editingProduct into form", e);
     }
   }, [editingProduct]);
 
-
-  // ---------- HELPERS ----------
-  const onChange = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+  // --------------------- FORM HELPERS ---------------------
+  const onChange = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
   const triggerFile = () => fileRef.current?.click();
 
   const handleImageUpload = (e) => {
@@ -282,8 +258,7 @@ export default function AdminAddProduct({
 
   const removeVariant = (i) => setVariants((prev) => prev.filter((_, idx) => idx !== i));
 
-  // ---------- VALIDATION ----------
-  // ---------- VALIDATION ----------
+  // --------------------- VALIDATION ---------------------
   const validate = () => {
     if (!form.name) return alert("Nhập tên sản phẩm");
     if (!form.category) return alert("Chọn danh mục");
@@ -357,33 +332,13 @@ export default function AdminAddProduct({
       const productId = res.data?.id;
       if (!productId) throw new Error("Product ID not returned");
 
-      // ---------- UPLOAD IMAGES ----------
-      // ---------- UPLOAD IMAGES ----------
+      // -------------------- UPLOAD IMAGES --------------------
+      // -------------------- UPLOAD IMAGES --------------------
       const imagesSnapshot = Array.isArray(form.images) ? [...form.images] : [];
       const pendingIndexed = imagesSnapshot
         .map((img, idx) => ({ img, idx }))
-        .filter((x) => x.img && x.img.file)
-        .map((x) => ({ file: x.img.file, formIndex: x.idx, isMain: !!x.img.isMain }));
-
-      const syncAndReturn = async () => {
-        try {
-          const sync = await adminProductService.syncProductImages(productId);
-          if (sync?.success && sync.data) {
-            onSaved(sync.data);
-            alert("Lưu thành công");
-            return true;
-          }
-        } catch { }
-        try {
-          const refreshed = await adminProductService.getProduct(productId);
-          if (refreshed?.success && refreshed.data) {
-            onSaved(refreshed.data);
-            alert("Lưu thành công");
-            return true;
-          }
-        } catch { }
-        return false;
-      };
+        .filter(x => x.img && x.img.file)
+        .map(x => ({ file: x.img.file, formIndex: x.idx, isMain: !!x.img.isMain }));
 
       if (pendingIndexed.length) {
         setGlobalLoadingText("Đang upload ảnh lên Cloud...");
@@ -394,7 +349,7 @@ export default function AdminAddProduct({
         try {
           const user = JSON.parse(localStorage.getItem("anta_user") || "null");
           if (user?.id) uploaderId = Number(user.id);
-        } catch { }
+        } catch {}
 
         const uploadedData = await uploadMultipleToCloud(filesToUpload, { uploaderId });
         const uploadedArr = Array.isArray(uploadedData) ? uploadedData : uploadedData?.data || [];
@@ -472,8 +427,7 @@ export default function AdminAddProduct({
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi: " + (err?.response?.data?.message || err?.message || err));
-      alert("Lỗi: " + (err?.response?.data?.message || err?.message || err));
+      alert("Lỗi: " + (err?.message || err));
     } finally {
       setLoading(false);
       setGlobalLoadingText(null);
@@ -642,69 +596,26 @@ export default function AdminAddProduct({
           </div>
         </div>
 
-        {/* RIGHT */}
-        {/* RIGHT */}
+        {/* CATEGORY RIGHT SIDE */}
         <div className="category-section-sidebar">
           <div className="section-card">
-            <h3 className="section-card-title">Nhóm (title) & Danh mục</h3>
+            <h3 className="section-card-title">Danh Mục</h3>
 
             <div className="form-input-group">
-              <label className="input-label">Chọn nhóm (title)</label>
-              <select
-                className="form-text-input"
-                value={titleFilter}
-                onChange={(e) => setTitleFilter(e.target.value)}
-              >
-                {CANON_TITLES.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* SELECT NHÓM (TITLE) */}
-            <div className="form-input-group">
-              <label className="input-label">Chọn nhóm (title)</label>
-              <select
-                className="form-text-input"
-                value={titleFilter}
-                onChange={(e) => setTitleFilter(e.target.value)}
-              >
-                {CANON_TITLES.map(t => (
-                  <option key={t.key} value={t.key}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* TẠO NHANH DANH MỤC */}
-            <div className="form-input-group">
-              <label className="input-label">Tạo danh mục mới (thuộc nhóm đang chọn)</label>
-              <label className="input-label">Tạo danh mục mới (thuộc nhóm đang chọn)</label>
+              <label className="input-label">Danh mục đã chọn</label>
               <div className="add-category-row">
                 <input
                   type="text"
                   className="form-text-input"
-                  placeholder={`Nhập danh mục mới cho ${CANON_TITLES.find((x) => x.key === titleFilter)?.label || titleFilter
-                    }…`}
+                  placeholder="Nhập danh mục mới…"
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  onKeyDown={async (e) => {
-                    if (e.key !== "Enter") return;
-                    const name = newCategory.trim();
-                    if (!name) return;
-                    try {
-                      const created = await createCategorySmart(name);
-                      setCategories((prev) => [created, ...prev]);
-                      onChange("category", created);
-                      setNewCategory("");
-                      try {
-                        localStorage.setItem("anta_categories_version", String(Date.now()));
-                      } catch { }
-                    } catch (err) {
-                      alert(err.message || "Tạo danh mục thất bại");
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { // Enter cũng thêm
+                      if (newCategory.trim() !== "") {
+                        setCategories((prev) => [...prev, newCategory.trim()]);
+                        setNewCategory("");
+                      }
                     }
                   }}
                 />
@@ -719,11 +630,6 @@ export default function AdminAddProduct({
                       setCategories((prev) => [created, ...prev]);
                       onChange("category", created);
                       setNewCategory("");
-                      try {
-                        localStorage.setItem("anta_categories_version", String(Date.now()));
-                      } catch { }
-                    } catch (err) {
-                      alert(err.message || "Tạo danh mục thất bại");
                     }
                   }}
                 >
@@ -757,45 +663,15 @@ export default function AdminAddProduct({
                   <span className="category-item-icon">
                     {form.category?.slug === cat.slug ? "●" : "○"}
                   </span>
-                  <span className="category-item-name">{cat.name}</span>
-                  <span className="category-item-name">{cat.name}</span>
+                  <span className="category-item-name">{cat}</span>
 
                   <button
                     type="button"
                     className="delete-category-btn"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-
-                      const id = cat.id;
-                      if (!id) {
-                        alert("Không thể xóa danh mục (thiếu id).");
-                        return;
-                      }
-
-                      const ok = window.confirm(
-                        `Xóa danh mục "${cat.name}" và XÓA TẤT CẢ sản phẩm thuộc danh mục này?`
-                      );
-                      if (!ok) return;
-
-                      try {
-                        const resp = await apiDeleteCategory(id);
-
-                        // giữ logic cũ: cập nhật state category trong màn hình hiện tại
-                        setCategories((prev) =>
-                          prev.filter((c) => (c.id ?? c.slug) !== (cat.id ?? cat.slug))
-                        );
-                        if (form.category?.id === id) onChange("category", null);
-
-                        alert(`Đã xóa danh mục. Số sản phẩm đã xóa: ${resp?.deletedProducts ?? 0}`);
-
-                        // ✅ THÊM: điều hướng về ProductManagement + reload danh sách sản phẩm
-                        await onCategoryDeleted();
-                      } catch (err) {
-                        alert(
-                          "Xóa danh mục thất bại: " +
-                          (err?.response?.data?.message || err?.message || err)
-                        );
-                      }
+                    onClick={(e) => {
+                      e.stopPropagation(); // ✅ Ngăn trigger onClick của parent
+                      setCategories((prev) => prev.filter((c) => c !== cat));
+                      if (form.category === cat) onChange('category', ''); // ✅ Clear nếu đang chọn
                     }}
                   >
                     ✕

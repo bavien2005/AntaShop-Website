@@ -307,10 +307,7 @@ import { productApi } from "../api";
  * - Có mock fallback khi không cấu hình API thật
  */
 
-const USE_REAL_PRODUCT_API = Boolean(
-  import.meta.env.VITE_PRODUCT_SERVICE_URL || import.meta.env.VITE_API_URL
-);
-
+const USE_REAL_PRODUCT_API = Boolean(import.meta.env.VITE_PRODUCT_SERVICE_URL || import.meta.env.VITE_API_URL);
 
 const PRODUCT_BASE = "/api/product";
 
@@ -322,40 +319,18 @@ const CLOUD_BASE_FALLBACK =
 
 const mockProducts = window.__ANTA_ADMIN_MOCK_PRODUCTS || [];
 
-/* ---------------- Helpers ---------------- */
-/* ---------------- Helpers ---------------- */
+/* helpers */
 const extractUrl = (item) => {
   if (!item) return null;
   if (typeof item === "string") return item;
   if (typeof item === "object") {
-    return (
-      item.url ||
-      item.fileUrl ||
-      item.path ||
-      item.location ||
-      item.fullUrl ||
-      item.publicUrl ||
-      item.src ||
-      null
-    );
-    return (
-      item.url ||
-      item.fileUrl ||
-      item.path ||
-      item.location ||
-      item.fullUrl ||
-      item.publicUrl ||
-      item.src ||
-      null
-    );
+    return item.url || item.fileUrl || item.path || item.location || item.fullUrl || item.publicUrl || item.src || null;
   }
   return null;
 };
-
-
 const normalizeUrl = (src) => {
-  if (!src || typeof src !== "string") return null;
-  if (!src || typeof src !== "string") return null;
+  if (!src) return null;
+  if (typeof src !== "string") return null;
   const t = src.trim();
   if (
     t.startsWith("http://") ||
@@ -395,8 +370,6 @@ const parsePriceValue = (val) => {
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 };
-
-
 const parseIntSafe = (v) => {
   if (v === undefined || v === null || v === "") return 0;
   const n = Number(v);
@@ -411,9 +384,9 @@ const normalizeFromBackend = (p = {}) => {
     try {
       const parsed = JSON.parse(p.images);
       imagesArr = Array.isArray(parsed) ? parsed : [parsed];
-    } catch {
-    } 
-      imagesArr = p.images ? [p.images] : [];   
+    } catch (e) {
+      imagesArr = p.images ? [p.images] : [];
+    }
   } else if (p.image) imagesArr = [p.image];
 
   const safeImages = imagesArr
@@ -458,8 +431,7 @@ const normalizeFromBackend = (p = {}) => {
   const computedPrice = pPrice > 0 ? pPrice : vPrices.length ? Math.min(...vPrices) : 0;
 
   const totalStock =
-    p.totalStock !== undefined && p.totalStock !== null
-    p.totalStock !== undefined && p.totalStock !== null
+    (p.totalStock !== undefined && p.totalStock !== null)
       ? parseIntSafe(p.totalStock)
       : variants.length
       ? variants.reduce((s, v) => s + Number(v.stock || 0), 0)
@@ -479,14 +451,12 @@ const normalizeFromBackend = (p = {}) => {
     totalStock: totalStock ?? 0,
     rating: p.rating ?? 5,
     sales: p.sales ?? 0,
-    variants,
-    variants,
+    variants: variants,
     raw: p,
   };
 };
 
-/* ---------------- API ---------------- */
-/* ---------------- API ---------------- */
+// ------------------- API -------------------
 export const adminProductService = {
   async getProducts(filters = {}) {
     if (USE_REAL_PRODUCT_API) {
@@ -513,9 +483,7 @@ export const adminProductService = {
     await new Promise((r) => setTimeout(r, 150));
     return { success: true, data: mockProducts.map(normalizeFromBackend) };
   },
-
-  async getProduct(id) {
-
+  syncProductImages: async (productId) => {
     if (USE_REAL_PRODUCT_API) {
       try {
         const res = await productApi.get(`${PRODUCT_BASE}/${id}`);
@@ -546,28 +514,18 @@ export const adminProductService = {
         };
       }
     }
-
-    // mock fallback
-    return this.getProduct(productId);
+    const p = mockProducts.find((x) => String(x.id) === String(id));
+    return p ? { success: true, data: normalizeFromBackend(p) } : { success: false, error: "Không tìm thấy sản phẩm" };
   },
 
-  async createProduct(productData) {
-    // Payload cho BE: phải có categoryId nếu chọn    // Payload cho BE: phải có categoryId nếu chọn
+  createProduct: async (productData) => {
     const payload = {
       name: productData.name,
       brand: productData.brand || null,
       description: productData.description || "",
       price: productData.price ?? 0,
-      categoryId:
-        productData.categoryId ??
-        productData.category?.id ??
-        productData.categoryIdFromForm ??
-        null,
-      categoryId:
-        productData.categoryId ??
-        productData.category?.id ??
-        productData.categoryIdFromForm ??
-        null,
+      categories: productData.category ? [productData.category] : productData.categories || [],
+      category: productData.category || undefined,
       variants: Array.isArray(productData.variants)
         ? productData.variants.map((v) => ({
             sku: v.sku,
@@ -583,8 +541,6 @@ export const adminProductService = {
       // và BE hiện đang nhận imageIds trong ProductRequest (nếu FE có gửi).
       // File gốc không gửi imageIds ở đây, nên giữ nguyên.
     };
-
-
     if (USE_REAL_PRODUCT_API) {
       try {
         const res = await productApi.post(`${PRODUCT_BASE}/add`, payload);
@@ -598,8 +554,6 @@ export const adminProductService = {
       }
     }
 
-    // mock
-    // mock
     await new Promise((r) => setTimeout(r, 200));
     const newId = mockProducts.length
       ? Math.max(...mockProducts.map((p) => p.id)) + 1
@@ -646,42 +600,10 @@ export const adminProductService = {
       brand: productData.brand || null,
       description: productData.description || "",
       price: productData.price ?? 0,
-      categoryId:
-        productData.categoryId ??
-        productData.category?.id ??
-        productData.categoryIdFromForm ??
-        undefined,
-      variants: Array.isArray(productData.variants)
-        ? productData.variants.map((v) => ({
-            id: v.id,
-            sku: v.sku,
-            price: v.price ?? 0,
-            stock: v.quantity ?? v.stock ?? 0,
-            size: v.size ?? null,
-            color: v.color ?? null,
-            attributes: v.attributes ?? null,
-          }))
-        : undefined,
-      categoryId:
-        productData.categoryId ??
-        productData.category?.id ??
-        productData.categoryIdFromForm ??
-        undefined,
-      variants: Array.isArray(productData.variants)
-        ? productData.variants.map((v) => ({
-            id: v.id,
-            sku: v.sku,
-            price: v.price ?? 0,
-            stock: v.quantity ?? v.stock ?? 0,
-            size: v.size ?? null,
-            color: v.color ?? null,
-            attributes: v.attributes ?? null,
-          }))
-        : undefined,
+      categories: productData.category ? [productData.category] : productData.categories || [],
+      variants: productData.variants || [],
       totalStock: productData.totalStock ?? productData.quantity ?? undefined,
     };
-
-
     if (USE_REAL_PRODUCT_API) {
       try {
         const res = await productApi.put(`${PRODUCT_BASE}/update/${id}`, payload);
@@ -695,8 +617,6 @@ export const adminProductService = {
       }
     }
 
-    // mock
-    // mock
     await new Promise((r) => setTimeout(r, 200));
     const idx = mockProducts.findIndex((p) => String(p.id) === String(id));
     if (idx === -1) return { success: false, error: "Không tìm thấy sản phẩm" };
@@ -717,8 +637,7 @@ export const adminProductService = {
         0
       );
     } else {
-      merged.quantity = Number(payload.totalStock ?? merged.quantity ?? 0);
-      merged.quantity = Number(payload.totalStock ?? merged.quantity ?? 0);
+      merged.quantity = Number(productData.quantity ?? merged.quantity ?? 0);
     }
 
     mockProducts[idx] = merged;

@@ -11,7 +11,6 @@ export default function SearchPage() {
   const [searchParams] = useSearchParams();
   const query = (searchParams.get("q") || "").trim();
 
-  // filters: chuẩn hoá kiểu (categoryIds là array của string)
   const [filters, setFilters] = useState({
     categoryIds: [], // ["1","2"]
     price: "",
@@ -23,218 +22,99 @@ export default function SearchPage() {
   const [sortBy, setSortBy] = useState("popular");
   const [viewMode, setViewMode] = useState("grid");
 
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  // categories map + options for sidebar
-  const [categoryOptions, setCategoryOptions] = useState([]); // [{id,name,slug,title}]
-  const [catById, setCatById] = useState({}); // { "1": {id,name,slug,title} }
-
-  // ---------- helpers ----------
-  const safeNumber = (v) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const normalizeText = (v) => (v == null ? "" : String(v).trim());
-
-  const getImage = (p) => {
-    // return a usable URL string for image preview
-    if (!p) return "https://via.placeholder.com/600x600?text=No+Image";
-    if (p?.thumbnail) return p.thumbnail;
-    if (p?.image) return p.image;
-    if (p?.imageUrl) return p.imageUrl;
-    if (Array.isArray(p?.images) && p.images.length) {
-      const first = p.images[0];
-      if (!first) return "https://via.placeholder.com/600x600?text=No+Image";
-      // if it's string
-      if (typeof first === "string") return first;
-      // if it's object with common props
-      return first?.src || first?.url || first?.fileUrl || first?.path || "https://via.placeholder.com/600x600?text=No+Image";
+  const mockProducts = [
+    {
+      id: 1,
+      name: 'Giày Chạy Thể Thao Nam ANTA Running Pro',
+      price: 1259100,
+      originalPrice: 1399000,
+      discount: '10%',
+      image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=600',
+      category: 'Giày',
+      brand: 'ANTA',
+      sizes: [39, 40, 41, 42, 43],
+      colors: ['Đen', 'Trắng'],
+      badge: 'HOT'
+    },
+    {
+      id: 2,
+      name: 'Giày Chạy Thể Thao Nữ ANTA Speed',
+      price: 1599000,
+      originalPrice: 1999000,
+      discount: '20%',
+      image: 'https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600',
+      category: 'Giày',
+      brand: 'ANTA',
+      sizes: [36, 37, 38, 39],
+      colors: ['Hồng', 'Xám'],
+      badge: 'SALE'
+    },
+    {
+      id: 3,
+      name: 'Giày Thể Thao Nam ANTA Lifestyle',
+      price: 1899000,
+      originalPrice: 2199000,
+      discount: '14%',
+      image: 'https://images.pexels.com/photos/2529157/pexels-photo-2529157.jpeg?auto=compress&cs=tinysrgb&w=600',
+      category: 'Giày',
+      brand: 'ANTA',
+      sizes: [40, 41, 42, 43, 44],
+      colors: ['Đen', 'Xanh'],
+      badge: 'NEW'
+    },
+    {
+      id: 4,
+      name: 'Giày Bóng Rổ ANTA Basketball Elite',
+      price: 2199000,
+      originalPrice: 2499000,
+      discount: '12%',
+      image: 'https://images.pexels.com/photos/1464625/pexels-photo-1464625.jpeg?auto=compress&cs=tinysrgb&w=600',
+      category: 'Giày',
+      brand: 'ANTA',
+      sizes: [41, 42, 43, 44],
+      colors: ['Đỏ', 'Đen'],
+      badge: 'HOT'
+    },
+    {
+      id: 5,
+      name: '��o Thể Thao Nam ANTA Performance',
+      price: 599000,
+      originalPrice: null,
+      discount: null,
+      image: 'https://images.pexels.com/photos/1232594/pexels-photo-1232594.jpeg?auto=compress&cs=tinysrgb&w=600',
+      category: 'Áo',
+      brand: 'ANTA',
+      sizes: ['M', 'L', 'XL'],
+      colors: ['Tr���ng', 'Đen'],
+      badge: 'NEW'
+    },
+    {
+      id: 6,
+      name: 'Quần Short Thể Thao ANTA Training',
+      price: 499000,
+      originalPrice: null,
+      discount: null,
+      image: 'https://images.pexels.com/photos/1656684/pexels-photo-1656684.jpeg?auto=compress&cs=tinysrgb&w=600',
+      category: 'Quần',
+      brand: 'ANTA',
+      sizes: ['M', 'L', 'XL'],
+      colors: ['Xám', 'Đen'],
+      badge: 'NEW'
     }
-    return "https://via.placeholder.com/600x600?text=No+Image";
-  };
+  ];
 
-  const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
-
-  const getVariantSizes = (p) => {
-    const variants = Array.isArray(p?.variants) ? p.variants : [];
-    return uniq(
-      variants
-        .map((v) => v?.attributes?.size ?? v?.size)
-        .map((x) => (x == null ? null : String(x).trim()))
-    );
-  };
-
-  const getVariantColors = (p) => {
-    const variants = Array.isArray(p?.variants) ? p.variants : [];
-    return uniq(
-      variants
-        .map((v) => v?.attributes?.color ?? v?.color)
-        .map((x) => (x == null ? null : String(x).trim()))
-    );
-  };
-
-  // resolve categoryId/categoryName/categorySlug
-  const resolveCategoryId = (p) => {
-    const cid = p?.categoryId ?? p?.category?.id ?? p?.category?.categoryId ?? null;
-    return cid == null ? "" : String(cid);
-  };
-
-  const resolveCategoryName = (p) => {
-    return (
-      normalizeText(p?.categoryName) ||
-      normalizeText(p?.category?.name) ||
-      normalizeText(p?.category) ||
-      ""
-    );
-  };
-
-  const resolveCategorySlug = (p) => {
-    const direct =
-      (normalizeText(p?.categorySlug) || normalizeText(p?.category?.slug) || normalizeText(p?.slug) || "").toLowerCase();
-
-    if (direct) return direct;
-
-    const cid = resolveCategoryId(p);
-    const hit = catById?.[cid];
-    return hit?.slug ? String(hit.slug).toLowerCase() : "";
-  };
-
-  // ---------- load categories (for filter) ----------
-  useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      try {
-        const grouped = await getGroupedCategories(); // { men: [...], women: [...] }
-
-        const options = [];
-        const byId = {};
-
-        Object.keys(grouped || {}).forEach((title) => {
-          const list = Array.isArray(grouped[title]) ? grouped[title] : [];
-          list.forEach((c) => {
-            const id = c?.id ?? c?.categoryId;
-            if (id == null) return;
-
-            const item = {
-              id: String(id),
-              name: c?.name || `Category ${id}`,
-              slug: (c?.slug || "").toString().toLowerCase(),
-              title: (c?.title || title || "").toString().toLowerCase(),
-            };
-
-            options.push(item);
-            byId[item.id] = item;
-          });
-        });
-
-        if (!mounted) return;
-        setCategoryOptions(options);
-        setCatById(byId);
-      } catch {
-        if (!mounted) return;
-        setCategoryOptions([]);
-        setCatById({});
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => {
+      if (Array.isArray(prev[filterType])) {
+        const currentValues = prev[filterType];
+        if (currentValues.includes(value)) {
+          return { ...prev, [filterType]: currentValues.filter(v => v !== value) };
+        } else {
+          return { ...prev, [filterType]: [...currentValues, value] };
+        }
+      } else {
+        return { ...prev, [filterType]: value };
       }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // ---------- fetch products by query ----------
-  useEffect(() => {
-    let mounted = true;
-
-    const run = async () => {
-      setLoading(true);
-      try {
-        const data = await productService.searchProducts(query);
-
-        const raw = data?.data ?? data;
-        const list =
-          Array.isArray(raw) ? raw :
-          Array.isArray(raw?.data) ? raw.data :
-          Array.isArray(raw?.items) ? raw.items :
-          Array.isArray(raw?.content) ? raw.content :
-          [];
-
-        if (!mounted) return;
-
-        // normalize product for filters
-        const normalized = list.map((p) => {
-          const cid = resolveCategoryId(p);
-          const cname = resolveCategoryName(p);
-          const cslug = resolveCategorySlug(p);
-
-          return {
-            ...p,
-            id: p?.id ?? p?.productId ?? p?.product_id ?? p?._id ?? p?.code ?? p?.sku,
-            name: p?.name || p?.productName || "Sản phẩm",
-            brand: normalizeText(p?.brand),
-            price: safeNumber(p?.price),
-            categoryId: cid,
-            categoryName: cname,
-            categorySlug: cslug,
-            sizes: getVariantSizes(p),
-            colors: getVariantColors(p),
-          };
-        });
-
-        setProducts(normalized);
-      } catch (e) {
-        if (!mounted) return;
-        setProducts([]);
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    };
-
-    run();
-    return () => {
-      mounted = false;
-    };
-  }, [query, catById]);
-
-  // ---------- dynamic filter options from results ----------
-  const availableBrands = useMemo(() => {
-    return uniq(products.map((p) => p.brand).filter(Boolean)).sort((a, b) => a.localeCompare(b, "vi"));
-  }, [products]);
-
-  const availableSizes = useMemo(() => {
-    return uniq(products.flatMap((p) => p.sizes || []));
-  }, [products]);
-
-  const availableColors = useMemo(() => {
-    return uniq(products.flatMap((p) => p.colors || []));
-  }, [products]);
-
-  const availableCategories = useMemo(() => {
-    if (categoryOptions.length > 0) {
-      const used = new Set(products.map((p) => p.categoryId).filter(Boolean));
-      return categoryOptions
-        .filter((c) => used.has(c.id))
-        .sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi"));
-    }
-
-    const map = {};
-    products.forEach((p) => {
-      if (!p.categoryId) return;
-      map[p.categoryId] = map[p.categoryId] || { id: p.categoryId, name: p.categoryName || `Category ${p.categoryId}` };
-    });
-    return Object.values(map).sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi"));
-  }, [products, categoryOptions]);
-
-  // ---------- filters handlers ----------
-  const toggleArrayFilter = (key, value) => {
-    setFilters((prev) => {
-      const arr = Array.isArray(prev[key]) ? prev[key] : [];
-      if (arr.includes(value)) return { ...prev, [key]: arr.filter((v) => v !== value) };
-      return { ...prev, [key]: [...arr, value] };
     });
   };
 
@@ -338,15 +218,11 @@ export default function SearchPage() {
                 </button>
               </div>
 
-              {/* Danh mục */}
-              <div className="filter-section">
-                <h4 className="filter-title">Danh mục</h4>
-                <div className="filter-options">
-                  {availableCategories.length === 0 ? (
-                    <div style={{ padding: 8, opacity: 0.7 }}>Không có danh mục</div>
-                  ) : (
-                    availableCategories.map((c) => (
-                      <label key={c.id} className="filter-checkbox">
+                <div className="filter-section">
+                  <h4 className="filter-title">Danh mục</h4>
+                  <div className="filter-options">
+                    {['Giày', 'Áo', 'Quần', 'Phụ kiện'].map(category => (
+                      <label key={category} className="filter-checkbox">
                         <input
                           type="checkbox"
                           checked={filters.categoryIds.includes(String(c.id))}
@@ -359,37 +235,32 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* Khoảng giá */}
-              <div className="filter-section">
-                <h4 className="filter-title">Khoảng giá</h4>
-                <div className="filter-options">
-                  {[
-                    { label: "Dưới 500.000₫", value: "0-500000" },
-                    { label: "500.000₫ - 1.000.000₫", value: "500000-1000000" },
-                    { label: "1.000.000₫ - 2.000.000₫", value: "1000000-2000000" },
-                    { label: "Trên 2.000.000₫", value: "2000000-999999999" },
-                  ].map((range) => (
-                    <label key={range.value} className="filter-radio">
-                      <input
-                        type="radio"
-                        name="price"
-                        checked={filters.price === range.value}
-                        onChange={() => setSingleFilter("price", range.value)}
-                      />
-                      <span>{range.label}</span>
-                    </label>
-                  ))}
+                <div className="filter-section">
+                  <h4 className="filter-title">Khoảng giá</h4>
+                  <div className="filter-options">
+                    {[
+                      { label: 'Dưới 500.000₫', value: '0-500000' },
+                      { label: '500.000₫ - 1.000.000₫', value: '500000-1000000' },
+                      { label: '1.000.000₫ - 2.000.000₫', value: '1000000-2000000' },
+                      { label: 'Trên 2.000.000₫', value: '2000000-999999999' }
+                    ].map(range => (
+                      <label key={range.value} className="filter-radio">
+                        <input
+                          type="radio"
+                          name="price"
+                          checked={filters.price === range.value}
+                          onChange={() => handleFilterChange('price', range.value)}
+                        />
+                        <span>{range.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Size */}
-              <div className="filter-section">
-                <h4 className="filter-title">Kích thước</h4>
-                <div className="filter-options size-grid">
-                  {availableSizes.length === 0 ? (
-                    <div style={{ padding: 8, opacity: 0.7 }}>Không có size</div>
-                  ) : (
-                    availableSizes.map((size) => (
+                <div className="filter-section">
+                  <h4 className="filter-title">Kích thước</h4>
+                  <div className="filter-options size-grid">
+                    {[39, 40, 41, 42, 43, 44, 'M', 'L', 'XL'].map(size => (
                       <button
                         key={size}
                         type="button"
@@ -403,14 +274,17 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* Color */}
-              <div className="filter-section">
-                <h4 className="filter-title">Màu sắc</h4>
-                <div className="filter-options color-grid">
-                  {availableColors.length === 0 ? (
-                    <div style={{ padding: 8, opacity: 0.7 }}>Không có màu</div>
-                  ) : (
-                    availableColors.map((name) => (
+                <div className="filter-section">
+                  <h4 className="filter-title">Màu sắc</h4>
+                  <div className="filter-options color-grid">
+                    {[
+                      { name: 'Đen', color: '#000' },
+                      { name: 'Trắng', color: '#fff' },
+                      { name: 'Xám', color: '#808080' },
+                      { name: 'Đỏ', color: '#ff0000' },
+                      { name: 'Xanh', color: '#0000ff' },
+                      { name: 'Hồng', color: '#ffc0cb' }
+                    ].map(({ name, color }) => (
                       <button
                         key={name}
                         type="button"
@@ -418,22 +292,17 @@ export default function SearchPage() {
                         onClick={() => toggleArrayFilter("color", String(name))}
                         title={name}
                       >
-                        <span className="color-swatch" />
-                        <span style={{ fontSize: 12, marginLeft: 6 }}>{name}</span>
+                        <span className="color-swatch" style={{ backgroundColor: color }}></span>
                       </button>
                     ))
                   )}
                 </div>
               </div>
 
-              {/* Brand */}
-              <div className="filter-section">
-                <h4 className="filter-title">Thương hiệu</h4>
-                <div className="filter-options">
-                  {availableBrands.length === 0 ? (
-                    <div style={{ padding: 8, opacity: 0.7 }}>Không có thương hiệu</div>
-                  ) : (
-                    availableBrands.map((brand) => (
+                <div className="filter-section">
+                  <h4 className="filter-title">Thương hiệu</h4>
+                  <div className="filter-options">
+                    {['ANTA'].map(brand => (
                       <label key={brand} className="filter-checkbox">
                         <input
                           type="checkbox"

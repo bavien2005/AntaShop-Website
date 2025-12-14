@@ -6,9 +6,6 @@ import { getGroupedCategories } from "../services/categories";
 import { productService } from "../services/api"; // ✅ dùng đúng service
 import "./ProductListPage.css";
 
-const TITLE_LABELS = { men: "Nam", women: "Nữ", accessories: "Phụ kiện", kids: "Kids" };
-
-
 export default function ProductListPage() {
   const navigate = useNavigate();
   const { addItem } = useCart();
@@ -262,8 +259,7 @@ export default function ProductListPage() {
       if (priceRange === "under1m") return price < 1_000_000;
       if (priceRange === "1m-2m") return price >= 1_000_000 && price <= 2_000_000;
       if (priceRange === "over2m") return price > 2_000_000;
-      return true;
-      return true;
+      return true; // all
     });
 
     // sorting
@@ -340,8 +336,7 @@ export default function ProductListPage() {
       <div className="product-list-page">
         <div className="page-header">
           <div className="container">
-            <h1 className="page-title">{pageTitle}</h1>
-            <h1 className="page-title">{pageTitle}</h1>
+            <h1 className="page-title">Tất Cả Sản Phẩm</h1>
             <p className="page-subtitle">Khám phá bộ sưu tập sản phẩm chính hãng</p>
           </div>
         </div>
@@ -520,4 +515,3 @@ export default function ProductListPage() {
     </Layout>
   );
 }
-
