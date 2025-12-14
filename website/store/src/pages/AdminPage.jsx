@@ -5,6 +5,7 @@ import { useAuth } from '../contexts';
 import { AdminSidebar, ProductManagement, ShippingManagement } from '../components';
 import adminService from '../services/adminService';
 import ProductOverviewChart from '../pages/ProductOverviewChart';
+import { useCart } from '../contexts';
 
 import './AdminPage.css';
 import DashboardStatsTabs from '../components/DashboardStatsTabs';
@@ -22,6 +23,7 @@ export default function AdminPage() {
   const [settings, setSettings] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
 
+  const { resetCartAfterLogout } = useCart();
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);

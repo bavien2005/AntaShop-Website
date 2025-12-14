@@ -47,12 +47,12 @@
   border: none;
   background: transparent;
   font-size: 14px;
-  color: #111111;
+  color: #0c0c0c;
   outline: none;
 }
 
 .search-input-inline::placeholder {
-  color: #6b6b6b;
+  color: #141313;
 }
 
 .clear-search-btn {
@@ -240,4 +240,23 @@
   .result-price-inline {
     font-size: 13px;
   }
+}
+
+.search-bar-inline { position: relative; }
+.search-dropdown-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 9999; }
+.search-input-inline {
+  color: #111 !important;
+  -webkit-text-fill-color: #111 !important; /* hay bị theme override trên Chrome */
+  caret-color: #111 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+.search-input-inline::placeholder {
+  color: #777 !important;
+}
+
+.search-dropdown-results,
+.search-dropdown-results * {
+  color: #111;
 }

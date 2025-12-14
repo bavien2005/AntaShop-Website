@@ -1,19 +1,67 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./header.css";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart, useAuth } from "../contexts";
 import SearchDrawer from "./overlays/SearchDrawer";
 import { ROUTES, MENU_ITEMS } from "../constants";
+import { getGroupedCategories } from "../services/categories";
+
+const CANON_TITLES = [
+  { key: "men", label: "NAM" },
+  { key: "women", label: "NỮ" },
+  { key: "accessories", label: "PHỤ KIỆN" },
+  { key: "kids", label: "KIDS" },
+];
 
 const Header = () => {
   const navigate = useNavigate();
   const { totalItems } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
+
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  const menuData = MENU_ITEMS;
+  // timers để hover mượt
+  const openTimeoutRef = useRef(null);
+  const closeTimeoutRef = useRef(null);
+
+  // menu tĩnh + động (danh mục)
+  const [menuData, setMenuData] = useState(MENU_ITEMS);
+
+  useEffect(() => {
+    (async () => {
+      let grouped = {};
+      try {
+        grouped = await getGroupedCategories();
+      } catch (e) {
+        console.warn("load categories for header failed", e);
+      }
+
+      const dynamicGroups = CANON_TITLES.map((t) => ({
+        id: `dyn-${t.key}`,
+        name: t.label,
+        link: `/shop/${t.key}`,
+        hasDropdown: true,
+        dropdown: [
+          {
+            title: "Danh mục",
+            items: (grouped[t.key] || []).map((c) => ({
+              name: c.name,
+              link: `/shop/${t.key}/${c.slug}`,
+            })),
+          },
+        ],
+      }));
+
+      setMenuData([...MENU_ITEMS, ...dynamicGroups]);
+    })();
+
+    return () => {
+      window.clearTimeout(openTimeoutRef.current);
+      window.clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   const handlePushRouter = (link) => {
     if (!link) return;
@@ -21,31 +69,30 @@ const Header = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const handleMouseEnter = (itemId) => {
-    setActiveDropdown(itemId);
+  // Hover mượt: delay mở/đóng
+  const handleEnter = (itemId) => {
+    window.clearTimeout(closeTimeoutRef.current);
+    openTimeoutRef.current = window.setTimeout(() => {
+      setActiveDropdown(itemId);
+    }, 80);
   };
 
-  const handleMouseLeave = () => {
-    setActiveDropdown(null);
+  const handleLeave = () => {
+    window.clearTimeout(openTimeoutRef.current);
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setActiveDropdown(null);
+    }, 140);
   };
 
-  const handleMobileMenuToggle = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
-
+  const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
   const handleLogout = () => {
     logout();
     navigate(ROUTES.HOME);
     setIsMobileMenuOpen(false);
   };
 
-  const handleCartClick = () => {
-    navigate(ROUTES.CART);
-  };
-
-  const handleSearchToggle = () => {
-    setIsSearchOpen(!isSearchOpen);
-  };
+  const handleCartClick = () => navigate(ROUTES.CART);
+  const handleSearchToggle = () => setIsSearchOpen((v) => !v);
 
   return (
     <>
@@ -57,9 +104,7 @@ const Header = () => {
               onClick={handleMobileMenuToggle}
               aria-label="Menu"
             >
-              <span
-                className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}
-              >
+              <span className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}>
                 <span></span>
                 <span></span>
                 <span></span>
@@ -77,69 +122,85 @@ const Header = () => {
 
           <nav className="header-navigation">
             <ul className="navigation-list">
-              {menuData.map((item) => (
-                <li
-                  key={item.id}
-                  className="navigation-item"
-                  onMouseEnter={() =>
-                    item.hasDropdown && handleMouseEnter(item.id)
-                  }
-                  onMouseLeave={handleMouseLeave}
-                >
-                  <Link
-                    to={item.link}
-                    className="nav-item-link"
-                  >
-                    <span
-                      className={`nav-item-text ${
-                        item.highlight ? "text-highlight" : ""
-                      }`}
-                    >
-                      {item.name}
-                    </span>
-                    {item.hasDropdown && (
-                      <svg
-                        className="nav-chevron"
-                        width="10"
-                        height="6"
-                        viewBox="0 0 10 6"
-                        fill="none"
-                      >
-                        <path
-                          d="M1 1L5 5L9 1"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </Link>
+              {menuData.map((item) => {
+                const isOpen = activeDropdown === item.id && item.hasDropdown;
 
-                  {item.hasDropdown && activeDropdown === item.id && (
-                    <div className="navigation-dropdown">
-                      <div className="dropdown-container">
-                        {item.dropdown.map((section, index) => (
-                          <div key={index} className="dropdown-column">
-                            <h4 className="column-title">{section.title}</h4>
-                            <ul className="column-items">
-                              {section.items.map((subItem, subIndex) => (
-                                <li key={subIndex} className="column-item">
-                                  <span
-                                    onClick={() => handlePushRouter(item.link)}
-                                  >
-                                    {subItem}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
+                return (
+                  <li
+                    key={item.id}
+                    className="navigation-item"
+                    onMouseEnter={() => item.hasDropdown && handleEnter(item.id)}
+                    onMouseLeave={handleLeave}
+                  >
+                    <Link to={item.link} className="nav-item-link">
+                      <span
+                        className={`nav-item-text ${
+                          item.highlight ? "text-highlight" : ""
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+
+                      {item.hasDropdown && (
+                        <svg
+                          className="nav-chevron"
+                          width="10"
+                          height="6"
+                          viewBox="0 0 10 6"
+                          fill="none"
+                        >
+                          <path
+                            d="M1 1L5 5L9 1"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </Link>
+
+                    {item.hasDropdown && (
+                      <div
+                        className={`navigation-dropdown ${isOpen ? "open" : ""}`}
+                        onMouseEnter={() => handleEnter(item.id)}
+                        onMouseLeave={handleLeave}
+                        aria-hidden={!isOpen}
+                      >
+                        <div className="dropdown-container">
+                          {item.dropdown.map((section, index) => (
+                            <div key={index} className="dropdown-column">
+                              <h4 className="column-title">{section.title}</h4>
+
+                              <ul className="column-items">
+                                {section.items.map((subItem, subIndex) => {
+                                  const label =
+                                    typeof subItem === "string"
+                                      ? subItem
+                                      : subItem.name;
+
+                                  const toLink =
+                                    typeof subItem === "string"
+                                      ? item.link
+                                      : subItem.link;
+
+                                  return (
+                                    <li key={subIndex} className="column-item">
+                                      <span onClick={() => handlePushRouter(toLink)}>
+                                        {label}
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </li>
-              ))}
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </nav>
 
@@ -170,13 +231,9 @@ const Header = () => {
             <button
               className="header-action user-action"
               onClick={() => {
-                if (!isAuthenticated) {
-                  navigate(ROUTES.LOGIN);
-                } else if (user?.role === 'ADMIN') {
-                  navigate(ROUTES.ADMIN);
-                } else {
-                  navigate('/account');
-                }
+                if (!isAuthenticated) navigate(ROUTES.LOGIN);
+                else if (user?.role === "ADMIN") navigate(ROUTES.ADMIN);
+                else navigate("/account");
               }}
               aria-label={isAuthenticated ? "Tài khoản" : "Đăng nhập"}
             >
@@ -194,11 +251,8 @@ const Header = () => {
             <button
               className="header-action wishlist-action"
               onClick={() => {
-                if (isAuthenticated) {
-                  navigate('/account/wishlist');
-                } else {
-                  navigate(ROUTES.LOGIN);
-                }
+                if (isAuthenticated) navigate("/account/wishlist");
+                else navigate(ROUTES.LOGIN);
               }}
               aria-label="Yêu thích"
             >
