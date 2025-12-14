@@ -9,7 +9,7 @@ import "./ProductDetailPage.css";
 export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { addToCart } = useCart();
+  const { addItem } = useCart();
   const { isInWishlist, addToWishlist, removeFromWishlist } = useWishlist();
 
   const [loading, setLoading] = useState(true);
@@ -160,48 +160,44 @@ export default function ProductDetailPage() {
   const handleMouseLeave = () => setIsZoomed(false);
 
   // actions
-  const handleAddToCartClick = () => {
-    // nếu có variants thì bắt buộc chọn size/color nếu tồn tại tập lựa chọn
-    if (variants.length) {
-      if (allSizes.length && !selectedSize) return alert("Vui lòng chọn kích thước");
-      if (allColors.length && !selectedColor) return alert("Vui lòng chọn màu sắc");
-    }
+const handleAddToCartClick = async () => {
+  // nếu có variants thì bắt buộc chọn size/color nếu tồn tại tập lựa chọn
+  if (variants.length) {
+    if (allSizes.length && !selectedSize) return alert("Vui lòng chọn kích thước");
+    if (allColors.length && !selectedColor) return alert("Vui lòng chọn màu sắc");
+  }
 
-    // --- resolve variantId an toàn (các kiểu tên khác nhau: id, _id, variantId, sku...) ---
-    const resolvedVariantId =
-      activeVariant?.id ??
-      activeVariant?._id ??
-      activeVariant?.variantId ??
-      activeVariant?.sku ?? // nếu backend dùng sku -> bạn có thể map sku -> variantId trên BE, fallback bên dưới
-      null;
+  // --- resolve variantId an toàn ---
+  const resolvedVariantId =
+    activeVariant?.id ??
+    activeVariant?._id ??
+    activeVariant?.variantId ??
+    activeVariant?.sku ??
+    null;
 
-    // Nếu sản phẩm có variants mà không tìm được id -> cảnh báo
-    if (variants.length && !resolvedVariantId) {
-      // fallback: nếu backend chấp nhận dùng productId làm variantId cho sản phẩm không phân biến thể
-      // nhưng nếu backend yêu cầu bắt buộc variantId, hãy bật alert để người dùng chọn biến thể hoặc dev xử lý mapping trên BE.
-      console.warn("Product has variants but resolvedVariantId is null. Using product id as fallback.");
-    }
-
-    // Nếu backend của bạn **bắt buộc** variantId (như log order-service), dùng fallback = productId
-    const finalVariantId = resolvedVariantId ?? Number(id);
-
-    // Gọi addToCart: CartContext.addToCart nhận (productObject, quantity)
-    addToCart(
-      {
-        id: Number(id),
-        name: prod?.name || "Sản phẩm",
-        price: currentPrice,
-        image: prod?.images?.[0] || prod?.thumbnail || placeholder,
-        size: selectedSize || undefined,
-        color: selectedColor || undefined,
-        // đảm bảo gửi một giá trị (number hoặc null) - tốt nhất là number
-        variantId: finalVariantId !== null ? Number(finalVariantId) : null,
-        sku: activeVariant?.sku || prod?.sku || (variants.length ? variants[0]?.sku : undefined),
-      },
-      Number(quantity) // quantity đảm bảo là number
+  if (variants.length && !resolvedVariantId) {
+    console.warn(
+      "Product has variants but resolvedVariantId is null. Using product id as fallback."
     );
-    alert("Đã thêm sản phẩm vào giỏ hàng!");
-  };
+  }
+
+  const finalVariantId = resolvedVariantId ?? Number(id);
+
+  await addItem({
+    id: Number(id),
+    name: prod?.name || "Sản phẩm",
+    price: currentPrice,
+    image: prod?.images?.[0] || prod?.thumbnail || placeholder,
+    size: selectedSize || undefined,
+    color: selectedColor || undefined,
+    variantId: finalVariantId !== null ? Number(finalVariantId) : null,
+    sku: activeVariant?.sku || prod?.sku || (variants.length ? variants[0]?.sku : undefined),
+    quantity: Number(quantity), // ✅ truyền quantity trong object, đúng với useCart.addItem
+  });
+
+  alert("Đã thêm sản phẩm vào giỏ hàng!");
+};
+
 
   const handleBuyNow = () => {
     handleAddToCartClick();

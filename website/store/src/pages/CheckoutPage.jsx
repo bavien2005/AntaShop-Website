@@ -7,6 +7,7 @@ import { momoPaymentService } from '../services';
 import { productService, orderService } from '../services/api';
 import './CheckoutPage.css';
 import { STORAGE_KEYS } from '../constants';
+import { useMemo } from 'react';
 const getStoredProfile = () => {
   try {
     const raw = localStorage.getItem('anta_user_profile');
@@ -59,7 +60,25 @@ export default function CheckoutPage() {
   const { items, totalPrice, clearCart } = useCart();
   const { user } = useAuth();
   const { profile: ctxProfile, addresses: ctxAddresses } = useUserData ? useUserData() : { profile: null, addresses: [] };
-
+  const normalizedItems = useMemo(() => {
+    return (items || []).map(it => {
+      const qty = Number(it.quantity ?? it.qty ?? it.count ?? 1) || 1;
+      const unitPrice = Math.round(Number(it.unitPrice ?? it.price ?? it.amount ?? 0) || 0);
+      return {
+        raw: it,
+        id: it.id ?? it.itemId ?? it.productId ?? null,
+        productId: it.productId ?? it.product ?? null,
+        variantId: it.variantId ?? it.optionId ?? null,
+        name: it.name ?? it.title ?? it.productName ?? '',
+        quantity: qty,
+        unitPrice,
+        lineTotal: unitPrice * qty,
+        image: it.image ?? it.imageUrl ?? it.thumbnail ?? it.img ?? '',
+        size: it.size ?? (it.variant && it.variant.size) ?? null,
+        color: it.color ?? (it.variant && it.variant.color) ?? null
+      };
+    });
+  }, [items]);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -299,7 +318,7 @@ export default function CheckoutPage() {
           productId: it.productId ?? it.product,
           variantId: it.variantId ?? null,
           name: it.name || it.title || it.productName || '',
-          image: it.image || it.thumbnail || it.img || '',
+          image: it.image || it.imageUrl || it.thumbnail || it.img || '',
           quantity: qty,
           unitPrice,
           lineTotal
@@ -353,15 +372,32 @@ export default function CheckoutPage() {
         }
       }
 
-      const orderId = orderResp?.orderId ?? orderResp?.id ?? orderResp?.order_id ?? null;
-      const serverTotal = orderResp?.total ?? orderResp?.amount ?? null;
+      // robust orderId resolution (accept many shapes)
+      const orderId = orderResp?.orderId
+        ?? orderResp?.id
+        ?? orderResp?.order_id
+        ?? orderResp?.orderIdString
+        ?? orderResp?.orderNumber
+        ?? orderResp?.order_number
+        ?? null;
+
+      if (!orderId) {
+        console.warn('[generateQRCodeForPayment] No orderId returned from order-service — will continue using orderNumber as identifier', { orderResp });
+        // fallback: use orderNumber (may be string like "6-uuid")
+        // we still proceed but keep orderId null — many downstream calls accept orderNumber
+      }
+
 
       if (!orderId) throw new Error('Không nhận được orderId từ order-service');
 
       // persist for success page / recovery
       saveOrderToLocalStorage(orderResp);
       setPaymentProgress({ status: 'creating-payment' });
-
+      const serverTotal = (() => {
+        const v = orderResp?.total ?? orderResp?.amount ?? null;
+        const n = (v === null || v === undefined) ? null : Number(v);
+        return Number.isFinite(n) ? Math.round(n) : null;
+      })();
       // compute expected/amountToSend BEFORE logging
       const expectedTotal = Math.round(finalTotal);
       let amountToSend = expectedTotal;
@@ -535,6 +571,8 @@ export default function CheckoutPage() {
       const userId = (user && (user.id ?? user.userId)) || storedUser.id || null;
 
       // build items with name/image/price
+      // src/pages/CheckoutPage.jsx - inside createOrderForCOD()
+
       const normalizedItems = items.map(it => {
         const qty = Number(it.quantity ?? it.qty ?? 1);
         const unitPrice = Math.round(Number(it.price ?? it.unitPrice ?? it.amount ?? 0) || 0);
@@ -543,7 +581,7 @@ export default function CheckoutPage() {
           productId: it.productId ?? it.product,
           variantId: it.variantId ?? null,
           name: it.name || it.title || it.productName || '',
-          image: it.image || it.thumbnail || it.img || '',
+          image: it.image || it.imageUrl || it.thumbnail || it.img || '', // ✅ FIX: thêm imageUrl
           quantity: qty,
           size: it.size ?? null,
           color: it.color ?? null,
@@ -551,6 +589,7 @@ export default function CheckoutPage() {
           lineTotal
         };
       });
+
 
       const shippingAddress = selectedAddress
         ? `${selectedAddress.detailedAddress || selectedAddress.address || ''}${selectedAddress.city ? ', ' + selectedAddress.city : ''}`
@@ -1048,15 +1087,17 @@ export default function CheckoutPage() {
                 <div className="order-summary">
                   <h3 className="summary-title">Đơn hàng của bạn</h3>
                   <div className="order-items">
-                    {items.map((item, index) => {
-                      const vid = item.variantId ?? null;
-                      const vinfo = vid ? variantDetails[Number(vid)] : null;
-                      const displaySize = item.size || (vinfo && vinfo.size) || null;
-                      const displayColor = item.color || (vinfo && vinfo.color) || null;
+                    {normalizedItems.map((item, index) => {
+                      const displaySize = item.size;
+                      const displayColor = item.color;
                       return (
-                        <div key={`${item.id}-${index}`} className="summary-item">
+                        <div key={`${item.id ?? index}-${index}`} className="summary-item">
                           <div className="item-image-wrapper">
-                            <img src={item.image || 'https://via.placeholder.com/80'} alt={item.name} onError={(e) => e.target.src = 'https://via.placeholder.com/80?text=No+Image'} />
+                            <img
+                              src={item.image || 'https://via.placeholder.com/80'}
+                              alt={item.name || 'Product'}
+                              onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/80?text=No+Image'; }}
+                            />
                             <span className="item-qty">{item.quantity}</span>
                           </div>
                           <div className="item-details">
@@ -1064,12 +1105,13 @@ export default function CheckoutPage() {
                             {(displaySize || displayColor) ? (
                               <p className="item-variants">{displaySize && `Size: ${displaySize}`}{displaySize && displayColor && ' | '}{displayColor && `Màu: ${displayColor}`}</p>
                             ) : (<p className="item-variants muted">Không có chọn lựa biến thể</p>)}
-                            <p className="item-price">{(item.price || 0).toLocaleString()}₫</p>
+                            <p className="item-price">{(item.unitPrice || 0).toLocaleString()}₫</p>
                           </div>
                         </div>
                       );
                     })}
                   </div>
+
 
                   <div className="promo-section">
                     {appliedPromo ? (

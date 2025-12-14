@@ -68,7 +68,10 @@ export default function CartPage() {
 
   const localTotalPrice = useMemo(
     () =>
-      items.reduce((sum, item) => sum + (item.price || 0) * getLocalQty(item), 0),
+      items.reduce(
+        (sum, item) => sum + ((item.unitPrice ?? item.price ?? 0) * getLocalQty(item)),
+        0
+      ),
     [items, localQuantities]
   );
 
@@ -246,11 +249,11 @@ export default function CartPage() {
         variantId: item.variantId ?? null,
         name: item.name,
         quantity: getLocalQty(item),
-        price: item.price,
+        price: item.unitPrice ?? item.price ?? 0,
         size: item.size ?? null,
         color: item.color ?? null,
         sku: item.sku ?? null,
-        image: item.image ?? null
+        image: item.image ?? item.imageUrl ?? null,
       })),
       coupon: appliedCoupon,
       notes: orderNotes,
@@ -387,7 +390,11 @@ export default function CartPage() {
                         <div className="col-product">
                           <div className="item-image">
                             <img
-                              src={item.image || 'https://via.placeholder.com/100x100'}
+                              src={
+                                item.image ||
+                                item.imageUrl ||
+                                'https://via.placeholder.com/100x100'
+                              }
                               alt={item.name}
                               onError={(e) => {
                                 e.target.src =
@@ -405,7 +412,7 @@ export default function CartPage() {
                         <div className="col-price">
                           <div className="item-price">
                             <span className="current-price">
-                              {(item.price || 0).toLocaleString()}₫
+                              {((item.unitPrice ?? item.price ?? 0).toLocaleString())}₫
                             </span>
                             {item.originalPrice && item.originalPrice > item.price && (
                               <span className="original-price">
@@ -450,7 +457,7 @@ export default function CartPage() {
 
                         <div className="col-total">
                           <span className="total-price">
-                            {((item.price || 0) * getLocalQty(item)).toLocaleString()}₫
+                            {(((item.unitPrice ?? item.price ?? 0) * getLocalQty(item)).toLocaleString())}₫
                           </span>
                         </div>
 
@@ -565,7 +572,7 @@ export default function CartPage() {
                         </button>
                       ))}
                     </div>
-                  </div>              
+                  </div>
                   {/* Order summary */}
                   <div className="order-summary">
                     <h3 className="section-title">Tổng đơn hàng</h3>

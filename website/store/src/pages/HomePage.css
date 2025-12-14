@@ -724,7 +724,7 @@
 
 .brand-story-description {
   font-size: 16px;
-  color: var(--color-text);
+  color: #000;
   line-height: 1.9;
   margin: 0;
   font-weight: var(--font-weight-regular);

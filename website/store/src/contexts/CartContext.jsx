@@ -1,165 +1,236 @@
-//src/contexts/CartContext.jsx
-import React, { createContext, useContext, useMemo } from 'react';
-import { useCart as useCartHook } from '../hooks/useCart';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { cartService } from "../services/api";
+import { getSessionId } from "../utils/session";
+import { useAuth } from "./AuthContext";
 
-const CartContext = createContext();
+const CartContext = createContext(null);
 
-export const CartProvider = ({ children }) => {
-  // Đổi tên updateQuantity từ hook để tránh trùng
-  const {
-    cart,
-    loading,
-    addItem,
-    removeItem,
-    clearCart,
-    updateQuantity: updateQuantityHook,
-    refreshCart,
-    mergeGuestToUser,
-    resetCartAfterLogout,
-  } = useCartHook();
+export function CartProvider({ children }) {
+  const { user, isAuthenticated } = useAuth();
 
-  // DEBUG: Log cart từ BE
-  console.log('🛒 [CartContext] BE Cart:', cart);
-  console.log('🛒 [CartContext] BE Items:', cart?.items);
+  const userId = useMemo(() => (isAuthenticated && user?.id ? Number(user.id) : null), [isAuthenticated, user?.id]);
 
-  // Map data từ BE sang CartPage format
-  // Map data từ BE sang CartPage format (chuẩn hoá kiểu: number|null, fallback rõ ràng)
-  // Map data từ BE sang CartPage format (chuẩn hoá kiểu: number|null, fallback rõ ràng)
-  const items = useMemo(() => {
-    if (!cart?.items) {
-      console.log('🔄 [CartContext] No items in cart');
-      return [];
+  const [cart, setCart] = useState({ id: null, items: [] });
+  const [loading, setLoading] = useState(false);
+
+  // giữ sessionId ổn định + có thể reset khi logout
+  const [sessionId, setSessionId] = useState(() => getSessionId());
+
+  // merge flag - chỉ merge 1 lần / mỗi lần login
+  const [hasMerged, setHasMerged] = useState(false);
+
+  // tránh setState khi unmount (optional safety)
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // ================== FETCH CART ==================
+  const fetchCart = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const res = userId
+        ? await cartService.getCurrentCart(userId, null)
+        : await cartService.getCurrentCart(null, sessionId);
+
+      if (!mountedRef.current) return;
+      setCart(res || { id: null, items: [] });
+    } catch (err) {
+      console.error("❌ fetchCart error:", err);
+      if (!mountedRef.current) return;
+      setCart({ id: null, items: [] });
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
+  }, [userId, sessionId]);
 
-    console.log('🔄 [CartContext] Mapping BE items...');
-    // inside useMemo mapping in CartContext.jsx (replace the mapping function body)
-    return cart.items.map(cartItem => {
-      // normalize numeric fields (prevent undefined / string)
-      const mappedProductId = cartItem.productId != null ? Number(cartItem.productId) : (cartItem.product_id != null ? Number(cartItem.product_id) : null);
-      const mappedVariantId = cartItem.variantId != null ? Number(cartItem.variantId) : (cartItem.variant_id != null ? Number(cartItem.variant_id) : null);
-      const mappedPrice = cartItem.unitPrice != null ? Number(cartItem.unitPrice) : (cartItem.unit_price != null ? Number(cartItem.unit_price) : 0);
-      const mappedQty = cartItem.quantity != null ? Number(cartItem.quantity) : (cartItem.qty != null ? Number(cartItem.qty) : 0);
+  // fetch khi mount / khi userId / session đổi
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
 
-      // attributes could be present under various keys or even as a JSON string
-      let attrObj = null;
-      const rawAttributes = cartItem.attributes ?? cartItem.attrs ?? cartItem.attribute ?? null;
-      if (rawAttributes) {
-        if (typeof rawAttributes === 'string') {
-          try { attrObj = JSON.parse(rawAttributes); } catch { attrObj = null; }
-        } else if (typeof rawAttributes === 'object') {
-          attrObj = rawAttributes;
+  // ================== RESET MERGE FLAG KHI LOGIN ==================
+  useEffect(() => {
+    if (userId) {
+      setHasMerged(false); // 🔥 quan trọng: login -> reset để merge lại đúng 1 lần
+    }
+  }, [userId]);
+
+  // ================== MERGE GUEST → USER (1 LẦN) ==================
+  useEffect(() => {
+    if (!userId || hasMerged) return;
+
+    const mergeCart = async () => {
+      try {
+        // nếu guest cart trống thì khỏi merge
+        const guestCart = await cartService.getCurrentCart(null, sessionId);
+        const hasGuestItems = !!guestCart?.items?.length;
+
+        if (!hasGuestItems) {
+          setHasMerged(true);
+          return;
         }
+
+        await cartService.mergeCart(sessionId, userId);
+        setHasMerged(true);
+        await fetchCart();
+      } catch (err) {
+        console.error("❌ mergeCart error:", err);
       }
+    };
 
-      // try many possible keys for size/color
-      const sizeCandidate = cartItem.size ?? cartItem.size_label ?? cartItem.attributeSize ?? cartItem.attribute_size ?? attrObj?.size ?? attrObj?.Size ?? cartItem.variant?.size ?? cartItem.variant_size ?? null;
-      const colorCandidate = cartItem.color ?? cartItem.attributeColor ?? cartItem.attribute_color ?? attrObj?.color ?? attrObj?.Color ?? cartItem.variant?.color ?? cartItem.variant_color ?? null;
+    mergeCart();
+  }, [userId, sessionId, hasMerged, fetchCart]);
 
-      const size = (sizeCandidate !== undefined && sizeCandidate !== null && String(sizeCandidate).trim() !== '') ? String(sizeCandidate) : null;
-      const color = (colorCandidate !== undefined && colorCandidate !== null && String(colorCandidate).trim() !== '') ? String(colorCandidate) : null;
+  // --- helper: resolve variantId from various possible shapes
+  const resolveVariantId = (product) => {
+    if (!product) return null;
+    const cand =
+      product.variantId ??
+      (product.variant && (product.variant.id ?? product.variantId)) ??
+      product.selectedVariantId ??
+      product.selectedVariant?.id ??
+      product.option?.variantId ??
+      null;
 
-      const mappedItem = {
-        id: cartItem.id,             // CartItem ID từ DB (dùng làm key trên FE)
-        cartItemId: cartItem.id,     // alias
-        productId: mappedProductId,
-        // IMPORTANT: variantId must be number or null (not undefined)
-        variantId: mappedVariantId,
-        name: cartItem.productName || cartItem.name || cartItem.product_name || 'Sản phẩm',
-        price: mappedPrice,
-        quantity: mappedQty,
+    if (cand === undefined || cand === null) return null;
+    if (typeof cand === "string" && cand.trim() === "") return null;
 
-        // Các field bổ sung cho FE
-        image: cartItem.imageUrl || cartItem.image_url || cartItem.thumbnail || 'https://via.placeholder.com/100x100?text=Product',
-        size: size,
-        color: color,
-        sku: cartItem.sku || cartItem.productSku || cartItem.sku_code || `SKU-${mappedProductId ?? 'unknown'}`,
-        originalPrice: cartItem.originalPrice != null ? Number(cartItem.originalPrice) : (cartItem.original_price != null ? Number(cartItem.original_price) : null)
-      };
-
-      // Debugging output (tùy bạn giữ/loại)
-      console.log('📝 [CartContext] Mapped item:', mappedItem);
-      return mappedItem;
-    });
-
-  }, [cart]);
-
-
-
-  const totalItems = useMemo(() => {
-    return items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  }, [items]);
-
-  const totalPrice = useMemo(() => {
-    return items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
-  }, [items]);
-
-  const value = {
-    items,
-    cartId: cart?.id,
-    loading,
-    totalItems,
-    totalPrice,
-    subtotal: totalPrice,
-
-    addToCart: async (product, quantity = 1, options = {}) => {
-      console.log('➕ [CartContext] addToCart called:', { product, quantity, options });
-      // Truyền quantity vào payload
-      return await addItem({ ...product, quantity });
-    },
-
-    removeFromCart: async (cartItemId, options = {}) => {
-      console.log('🗑️ [CartContext] removeFromCart called:', { cartItemId, options });
-      await removeItem(cartItemId);
-    },
-
-    updateQuantity: async (cartItemId, quantity, options = {}) => {
-      console.log('🔢 [CartContext] updateQuantity called:', { cartItemId, quantity, options });
-
-      const item = items.find(i => i.id === cartItemId);
-      if (!item) {
-        console.error('❌ [CartContext] Item not found for cartItemId:', cartItemId);
-        return;
-      }
-
-      if (cart?.id) {
-        await updateQuantityHook(
-          item.productId,
-          item.variantId,
-          Number(quantity)
-        );
-      }
-    },
-
-    clearCart: async () => {
-      console.log('🧹 [CartContext] clearCart called');
-      if (cart?.id) {
-        await clearCart();
-      }
-    },
-
-    refreshCart,
-    mergeGuestToUser,
-    resetCartAfterLogout,
+    const n = Number(cand);
+    return Number.isNaN(n) ? null : n;
   };
 
-  console.log('🎯 [CartContext] Returning value:', {
-    itemsCount: value.items.length,
-    totalItems: value.totalItems,
-    totalPrice: value.totalPrice,
-    cartId: value.cartId
-  });
+  // ================== CRUD ==================
+  const addItem = useCallback(
+    async (product) => {
+      const payload = {
+        userId: userId || null,
+        sessionId: userId ? null : sessionId,
 
-  return (
-    <CartContext.Provider value={value}>
-      {children}
-    </CartContext.Provider>
+        productId: Number(product.id),
+        variantId: resolveVariantId(product), // null hoặc number
+
+        productName: product.name,
+        unitPrice: Number(product.price),
+        quantity: product.quantity || 1,
+
+        // optional (không ảnh hưởng nếu BE bỏ qua)
+        size: product.size || null,
+        color: product.color || null,
+        sku: product.sku || null,
+        imageUrl: product.image || product.imageUrl || null,
+      };
+
+      const updated = await cartService.addToCart(payload);
+      if (mountedRef.current) setCart(updated || { id: null, items: [] });
+      return updated;
+    },
+    [userId, sessionId]
   );
-};
 
-export const useCart = () => {
-  const context = useContext(CartContext);
-  if (!context) {
-    throw new Error('useCart must be used within CartProvider');
-  }
-  return context;
-};
+  const removeItem = useCallback(
+    async (cartItemId) => {
+      await cartService.removeItem(cartItemId);
+      await fetchCart();
+    },
+    [fetchCart]
+  );
+
+  // ✅ FIX: updateQuantity nhận (cartItemId, quantity, options) đúng như CartPage đang gọi
+  const updateQuantity = useCallback(
+    async (cartItemId, quantity, options) => {
+      if (!cart?.id) return;
+
+      const qty = Number(quantity);
+      if (!Number.isFinite(qty) || qty < 1) throw new Error("Quantity invalid");
+
+      // item.id thường là cartItemId
+      let item = (cart?.items || []).find(i => String(i.id) === String(cartItemId));
+
+      // fallback nếu nơi khác truyền productId thay vì cartItemId
+      if (!item) item = (cart?.items || []).find(i => String(i.productId) === String(cartItemId));
+
+      if (!item) throw new Error("Không tìm thấy cart item để cập nhật");
+
+      const productId = Number(item.productId ?? item.product?.id ?? item.productId);
+      const variantIdRaw = item.variantId ?? item.variant?.id ?? null;
+      const variantIdNum = (variantIdRaw === null || variantIdRaw === undefined || variantIdRaw === "")
+        ? null
+        : Number(variantIdRaw);
+
+      const updated = await cartService.updateQuantity(
+        cart.id,
+        productId,
+        Number.isNaN(variantIdNum) ? null : variantIdNum,
+        qty
+      );
+
+      if (mountedRef.current) setCart(updated || { id: null, items: [] });
+      return updated;
+    },
+    [cart?.id, cart?.items]
+  );
+
+
+  const clearCart = useCallback(
+    async () => {
+      if (!cart?.id) return;
+      await cartService.clearCart(cart.id);
+      await fetchCart();
+    },
+    [cart?.id, fetchCart]
+  );
+
+  // ================== RESET KHI LOGOUT ==================
+  useEffect(() => {
+    const onLogout = () => {
+      console.debug("[CartContext] auth:logout → reset FE cart");
+      setCart({ id: null, items: [] });
+      setHasMerged(false);
+      setSessionId(getSessionId());
+    };
+
+    window.addEventListener("auth:logout", onLogout);
+    return () => window.removeEventListener("auth:logout", onLogout);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      cart,
+      loading,
+      addItem,
+      removeItem,
+      removeFromCart: removeItem,
+      clearCart,
+      updateQuantity,
+      refreshCart: fetchCart,
+
+      get items() {
+        return cart?.items || [];
+      },
+
+      // badge = tổng quantity
+      get totalItems() {
+        return (cart?.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+      },
+
+      get totalPrice() {
+        return (cart?.items || []).reduce(
+          (sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 0),
+          0
+        );
+      },
+    }),
+    [cart, loading, addItem, removeItem, clearCart, updateQuantity, fetchCart]
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+}
+
+export function useCart() {
+  const ctx = useContext(CartContext);
+  if (!ctx) throw new Error("useCart must be used within <CartProvider />");
+  return ctx;
+}

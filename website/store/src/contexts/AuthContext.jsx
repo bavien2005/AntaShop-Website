@@ -9,7 +9,7 @@ import React, {
 import { STORAGE_KEYS } from "../constants";
 import { authService } from "../services/api";
 import api from "../services/api";
-
+import { createNewSessionId } from "../utils/session";
 // Hàm decode JWT
 function decodeJwt(token) {
   try {
@@ -116,97 +116,98 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     xoaTatCa();
+    createNewSessionId();
     window.dispatchEvent(new CustomEvent("auth:logout"));
-  };
+};
 
-  const thuLamMoiToken = useCallback(async () => {
-    const storedRefresh =
-      refreshToken || localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-    if (!storedRefresh) return false;
+const thuLamMoiToken = useCallback(async () => {
+  const storedRefresh =
+    refreshToken || localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+  if (!storedRefresh) return false;
 
-    try {
-      const res = await authService.refreshToken(storedRefresh);
-      const newAccess =
-        res?.accessToken ||
-        res?.data?.accessToken ||
-        res?.token ||
-        res?.access_token;
+  try {
+    const res = await authService.refreshToken(storedRefresh);
+    const newAccess =
+      res?.accessToken ||
+      res?.data?.accessToken ||
+      res?.token ||
+      res?.access_token;
 
-      if (newAccess) {
-        luuToken(newAccess, storedRefresh);
-        return true;
-      }
-      return false;
-    } catch {
-      xoaTatCa();
-      return false;
+    if (newAccess) {
+      luuToken(newAccess, storedRefresh);
+      return true;
     }
-  }, [refreshToken]);
+    return false;
+  } catch {
+    xoaTatCa();
+    return false;
+  }
+}, [refreshToken]);
 
-  useEffect(() => {
-    const interceptor = api.interceptors.response.use(
-      (r) => r,
-      async (err) => {
-        const original = err.config;
-        if (err.response?.status === 401 && !original._retry) {
-          original._retry = true;
-          const ok = await thuLamMoiToken();
-          if (ok) {
-            original.headers["Authorization"] = `Bearer ${localStorage.getItem(
-              STORAGE_KEYS.TOKEN
-            )}`;
-            return api(original);
-          }
-        }
-        return Promise.reject(err);
-      }
-    );
-    return () => api.interceptors.response.eject(interceptor);
-  }, [thuLamMoiToken]);
-
-  useEffect(() => {
-    const loadUser = async () => {
-      setIsLoading(true);
-      if (accessToken) {
-        const decoded = decodeJwt(accessToken);
-        if (decoded) {
-          const userId =
-            decoded.id || decoded.userId || decoded.user_id || null;
-          const role = String(decoded.role || "USER").toUpperCase();
-          const u = {
-            id: Number(userId),
-            username: decoded.sub || decoded.username || decoded.name || "",
-            role,
-            email: decoded.email || "",
-            phoneNumber: decoded.phoneNumber || decoded.phone || "",
-          };
-          setUser(u);
-          setIsAdmin(role === "ADMIN");
-          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(u));
-        } else {
-          await thuLamMoiToken();
+useEffect(() => {
+  const interceptor = api.interceptors.response.use(
+    (r) => r,
+    async (err) => {
+      const original = err.config;
+      if (err.response?.status === 401 && !original._retry) {
+        original._retry = true;
+        const ok = await thuLamMoiToken();
+        if (ok) {
+          original.headers["Authorization"] = `Bearer ${localStorage.getItem(
+            STORAGE_KEYS.TOKEN
+          )}`;
+          return api(original);
         }
       }
-      setIsLoading(false);
-    };
-    loadUser();
-  }, [accessToken, thuLamMoiToken]);
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!accessToken,
-        isAdmin,
-        isLoading,
-        login,
-        logout,
-        tryRefresh: thuLamMoiToken,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+      return Promise.reject(err);
+    }
   );
+  return () => api.interceptors.response.eject(interceptor);
+}, [thuLamMoiToken]);
+
+useEffect(() => {
+  const loadUser = async () => {
+    setIsLoading(true);
+    if (accessToken) {
+      const decoded = decodeJwt(accessToken);
+      if (decoded) {
+        const userId =
+          decoded.id || decoded.userId || decoded.user_id || null;
+        const role = String(decoded.role || "USER").toUpperCase();
+        const u = {
+          id: Number(userId),
+          username: decoded.sub || decoded.username || decoded.name || "",
+          role,
+          email: decoded.email || "",
+          phoneNumber: decoded.phoneNumber || decoded.phone || "",
+        };
+        setUser(u);
+        setIsAdmin(role === "ADMIN");
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(u));
+      } else {
+        await thuLamMoiToken();
+      }
+    }
+    setIsLoading(false);
+  };
+  loadUser();
+}, [accessToken, thuLamMoiToken]);
+
+return (
+  <AuthContext.Provider
+    value={{
+      user,
+      isAuthenticated: !!accessToken,
+      isAdmin,
+      isLoading,
+      login,
+      logout,
+      tryRefresh: thuLamMoiToken,
+    }}
+  >
+    {children}
+  </AuthContext.Provider>
+);
 };
 
 // Hook tiện dụng

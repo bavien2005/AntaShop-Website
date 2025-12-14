@@ -6,6 +6,8 @@ import { useOrders } from '../contexts';
 import { useToast } from '../components/ToastContainer';
 import { STORAGE_KEYS } from '../constants';
 import './OrderSuccessPage.css';
+import { notificationService } from '../services/api';
+import { useAuth, useUserData } from '../contexts';
 // ---------- helper functions ----------
 const isPaidStatus = (rawOrStatus) => {
   if (!rawOrStatus) return false;
@@ -59,15 +61,40 @@ export default function OrderSuccessPage() {
   const [orderData, setOrderData] = useState(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const hasShownToast = useRef(false);
-
+  const { user } = useAuth();
+  const { profile } = useUserData();
+  const sentOrderMailRef = useRef(false);
   useEffect(() => {
     const summary = location.state?.orderSummary;
     if (summary) {
+      const summaryItems = (summary.items || []).map((it) => {
+        const qty = Number(it.quantity ?? it.qty ?? it.count ?? 1) || 1;
+        const unitPrice = Number(it.unitPrice ?? it.price ?? it.amount ?? 0) || 0;
+
+        // ưu tiên nhiều field ảnh thường gặp
+        const img =
+          it.image ||
+          it.imageUrl ||
+          it.thumbnail ||
+          it.img ||
+          it.productImage ||
+          it.product?.image ||
+          it.product?.thumbnail ||
+          '';
+
+        return {
+          ...it,
+          quantity: qty,
+          unitPrice,
+          lineTotal: Number(it.lineTotal ?? it.total ?? (unitPrice * qty)) || (unitPrice * qty),
+          image: img,
+        };
+      });
       setOrderData({
         orderNumber: summary.orderNumber,
         orderDate: summary.orderDate || new Date().toISOString(),
-        items: summary.items || [],
-        subtotal: summary.subtotal || summary.items?.reduce((s, i) => s + (i.lineTotal || i.unitPrice * (i.quantity || 1) || 0), 0),
+        items: summaryItems,
+        subtotal: summary.subtotal || summaryItems.reduce((s, i) => s + (i.lineTotal || 0), 0),
         discount: summary.discount || 0,
         shipping: summary.shipping || 0,
         total: summary.total || Math.max(0, (summary.subtotal || 0) - (summary.discount || 0) + (summary.shipping || 0)),
@@ -152,18 +179,143 @@ export default function OrderSuccessPage() {
         return cleaned.join(', ') || '';
       };
 
+      // --- Thay thế toàn bộ getImageUrlFromCandidate + normalizeItem bằng khối này ---
+      const rawFiles = Array.isArray(raw?.files) ? raw.files
+        : Array.isArray(raw?.fileMetadata) ? raw.fileMetadata
+          : Array.isArray(raw?.filesMetadata) ? raw.filesMetadata
+            : Array.isArray(raw?.resources) ? raw.resources
+              : Array.isArray(raw?.images) ? raw.images
+                : [];
+
+      /**
+       * getImageUrlFromCandidate: cố gắng resolve nhiều dạng:
+       * - absolute http(s), protocol-relative, relative (prefix origin)
+       * - object.url/.src/.path/.thumbnail
+       * - array -> dùng phần tử đầu
+       * - numeric id / publicId -> lookup trong rawFiles
+       */
+      const getImageUrlFromCandidate = (cand) => {
+        if (cand === null || cand === undefined) return '';
+
+        // 1) String
+        if (typeof cand === 'string') {
+          const s = cand.trim();
+          if (!s) return '';
+          if (/^https?:\/\//i.test(s)) return s;
+          if (/^\/\//.test(s)) return window.location.protocol + s;
+          if (/^\//.test(s)) return window.location.origin + s;
+          // numeric or publicId string -> lookup
+          if (/^\d+$/.test(s) || /^[a-z0-9\-_]+$/i.test(s)) {
+            const found = rawFiles.find(f =>
+              String(f.id) === s ||
+              String(f.fileId) === s ||
+              String(f.publicId || f.public_id || '') === s
+            );
+            if (found) return getImageUrlFromCandidate(found.url || found.src || found.path || found.fileUrl || found.publicUrl || found.public_url);
+          }
+          return s;
+        }
+
+        // 2) Number -> lookup in rawFiles
+        if (typeof cand === 'number') {
+          const found = rawFiles.find(f => Number(f.id) === cand || Number(f.fileId) === cand);
+          if (found) return getImageUrlFromCandidate(found.url || found.src || found.path || found.fileUrl);
+          return '';
+        }
+
+        // 3) Object -> inspect common fields
+        if (typeof cand === 'object') {
+          const urlCandidates = [
+            cand.url, cand.src, cand.image, cand.path, cand.fileUrl, cand.file_url,
+            cand.imageUrl, cand.image_url, cand.thumbnail, cand.thumb, cand.publicUrl, cand.public_url
+          ];
+          for (const u of urlCandidates) {
+            if (u) {
+              const resolved = getImageUrlFromCandidate(u);
+              if (resolved) return resolved;
+            }
+          }
+
+          const arrKeys = ['images', 'files', 'media', 'resources', 'pictures', 'fileMetadata'];
+          for (const k of arrKeys) {
+            if (Array.isArray(cand[k]) && cand[k].length > 0) {
+              const maybe = getImageUrlFromCandidate(cand[k][0]);
+              if (maybe) return maybe;
+            }
+          }
+
+          const publicId = cand.publicId || cand.public_id || cand.public;
+          if (publicId && !cand.url) {
+            const found = rawFiles.find(f => String(f.publicId) === String(publicId) || String(f.public_id) === String(publicId));
+            if (found) return getImageUrlFromCandidate(found.url || found.src || found.path);
+            return String(publicId);
+          }
+
+          if (cand.file && (cand.file.url || cand.file.path)) return getImageUrlFromCandidate(cand.file.url || cand.file.path);
+          if (cand.file_metadata && cand.file_metadata.url) return getImageUrlFromCandidate(cand.file_metadata.url);
+
+          const idLike = cand.id || cand.fileId || cand.file_id || cand.productId;
+          if (idLike) {
+            const found = rawFiles.find(f =>
+              String(f.id) === String(idLike) ||
+              String(f.fileId) === String(idLike) ||
+              String(f.publicId || f.public_id || '') === String(idLike)
+            );
+            if (found) return getImageUrlFromCandidate(found.url || found.src || found.path || found.fileUrl);
+          }
+        }
+
+        return '';
+      };
+
       const normalizeItem = (it) => {
         if (!it) return null;
-        const name = it.name || it.productName || it.title || it.product_name || '';
-        const image = it.image || it.productImage || it.product_image || it.thumbnail || it.imageUrl || it.img || '';
-        const sku = it.sku || it.variantSku || it.code || it.sku_code || '';
-        const size = it.size || it.variantSize || (it.attributes && (it.attributes.size || it.attributes.SIZE)) || '';
-        const color = it.color || it.variantColor || (it.attributes && (it.attributes.color || it.attributes.COLOR)) || '';
+
+        const name = it.name || it.productName || it.title || it.product_name || (it.product && (it.product.name || it.product.title)) || '';
+
+        let imageCandidate = it.image || it.productImage || it.product_image || it.thumbnail || it.imageUrl || it.img || it.picture || it.picture_url || it.fileUrl || it.file_url || it.mediaUrl || it.media_url;
+
+        if (!imageCandidate && it.product) {
+          imageCandidate = it.product.image || it.product.thumbnail || it.product.imageUrl || (Array.isArray(it.product.images) ? it.product.images[0] : null) || it.product.files?.[0];
+        }
+
+        if (!imageCandidate && it.variant) {
+          imageCandidate = it.variant.image || it.variant.thumbnail || it.variant.images?.[0];
+        }
+
+        let resolvedImage = getImageUrlFromCandidate(imageCandidate || it || it.raw || it.product || it.files || it.images);
+
+        if (!resolvedImage) {
+          console.info('[OrderSuccessPage] IMAGE NOT RESOLVED for item -> kiểm tra item.raw bên dưới để debug');
+          console.debug('[OrderSuccessPage] ITEM_RAW:', it);
+        } else {
+          console.debug('[OrderSuccessPage] RESOLVED IMAGE', { name, resolvedImage });
+        }
+
+        const image = resolvedImage || '';
+
+        const sku = it.sku || it.variantSku || it.code || it.sku_code || (it.variant && it.variant.sku) || '';
+        const size = it.size || it.variantSize || (it.attributes && (it.attributes.size || it.attributes.SIZE)) || (it.variant && it.variant.size) || '';
+        const color = it.color || it.variantColor || (it.attributes && (it.attributes.color || it.attributes.COLOR)) || (it.variant && it.variant.color) || '';
         const quantity = Number(it.quantity ?? it.qty ?? it.count ?? 1);
-        const unitPrice = Number(it.price ?? it.unitPrice ?? it.amount ?? it.unit_price ?? 0) || 0;
-        const lineTotal = Number(it.lineTotal ?? unitPrice * quantity) || (unitPrice * quantity);
-        return { raw: it, productId: it.productId ?? it.product_id, variantId: it.variantId ?? it.variant_id, name, image, sku, size, color, quantity, unitPrice, lineTotal };
+        const unitPrice = Number(it.price ?? it.unitPrice ?? it.amount ?? it.unit_price ?? it.raw?.unitPrice ?? 0) || 0;
+        const lineTotal = Number(it.lineTotal ?? it.total ?? unitPrice * quantity) || unitPrice * quantity;
+
+        return {
+          raw: it,
+          productId: it.productId ?? it.product_id ?? it.product?.id ?? null,
+          variantId: it.variantId ?? it.variant_id ?? it.variant?.id ?? null,
+          name,
+          image,
+          sku,
+          size,
+          color,
+          quantity,
+          unitPrice,
+          lineTotal
+        };
       };
+
 
       // parse items from common shapes
       const itemsRaw = Array.isArray(raw.items) ? raw.items
@@ -283,6 +435,52 @@ export default function OrderSuccessPage() {
       console.error('Error normalizing order data', err);
     }
   }, [location.state, refreshOrders, showSuccess]);
+
+  useEffect(() => {
+    if (!orderData) return;
+    if (sentOrderMailRef.current) return;
+
+    const orderNo = extractDisplayOrderNumber(orderData) || orderData.orderNumber || '';
+    if (!orderNo) return;
+
+    // ưu tiên email user đang đăng nhập
+    let toEmail =
+      profile?.email ||
+      user?.email ||
+      orderData?.customer?.email ||
+      '';
+
+    if (!toEmail) {
+      try {
+        const lsProfile = JSON.parse(localStorage.getItem('anta_user_profile') || 'null');
+        toEmail = lsProfile?.email || '';
+      } catch { }
+    }
+    if (!toEmail) return;
+
+    // chống gửi trùng khi refresh
+    const lsKey = `anta_sent_order_success_${orderNo}_${toEmail}`;
+    if (localStorage.getItem(lsKey) === '1') {
+      sentOrderMailRef.current = true;
+      return;
+    }
+
+    sentOrderMailRef.current = true;
+
+    notificationService.sendOrderSuccess({
+      to: toEmail,
+      orderNumber: orderNo,
+      customerName: user?.username || 'bạn',
+      total: Math.round(Number(orderData?.total || 0)),
+      idempotencyKey: `order_success:${orderNo}:${toEmail}`,
+    }).then(() => {
+      try { localStorage.setItem(lsKey, '1'); } catch { }
+    }).catch((e) => {
+      console.warn('[OrderSuccessPage] sendOrderSuccess failed:', e);
+      sentOrderMailRef.current = false;
+    });
+
+  }, [orderData, profile?.email, user?.email]);
 
   if (!orderData) {
     return (
@@ -527,7 +725,7 @@ export default function OrderSuccessPage() {
                     </span>
                     <div className="payment-details">
                       <h4>{getPaymentMethodIcon(paymentMethod)}</h4>
-                      {orderData.customer.paymentMethod === 'cod' ? (
+                      {paymentMethod === 'cod' ? (
                         <p>Vui lòng chuẩn bị số tiền {orderData.total.toLocaleString()}₫ khi nhận hàng</p>
                       ) : paymentConfirmed ? (
                         <p className="payment-confirmed">✓ Đã xác nhận thanh toán thành công</p>

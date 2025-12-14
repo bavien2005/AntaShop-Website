@@ -23,7 +23,12 @@ orderApi.interceptors.request.use((cfg) => {
   }
   return cfg;
 })
-
+export const notificationService = {
+  sendOrderSuccess: async (payload) => {
+    const res = await api.post('/api/notifications/order-success', payload);
+    return res.data; // {success, message, requestId}
+  }
+};
 // orderService: call order-service endpoints
 // orderService: call order-service endpoints
 export const orderService = {
@@ -130,7 +135,7 @@ export const orderService = {
       throw new Error(msg);
     }
   },
- getOrders: async (params = {}) => {
+  getOrders: async (params = {}) => {
     try {
       const res = await orderApi.get('/api/orders', { params });
       const data = res.data;
@@ -233,8 +238,13 @@ export const productService = {
     const res = await api.get(url);
     return res.data;
   },
-  searchProducts: async (q) => {
-    const res = await api.get(API_ENDPOINTS.PRODUCTS.SEARCH, { params: { q } });
+  searchProducts: async (q, params = {}) => {
+    const res = await api.get("/api/product/search", { params: { q, ...params } });
+    return res.data;
+  },
+  getAllProducts: async (params = {}) => {
+    // gọi thẳng product-service (giống admin)
+    const res = await productApi.get("/api/product/all", { params });
     return res.data;
   },
 

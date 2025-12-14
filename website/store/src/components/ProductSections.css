@@ -204,7 +204,7 @@
 }
 
 .action-button:hover {
-  background: white;
+  background: rgb(212, 48, 48);
   transform: scale(1.1);
 }
 

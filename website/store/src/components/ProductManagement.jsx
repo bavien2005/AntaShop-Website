@@ -111,7 +111,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
         return;
       }
 
-      const pid = item.id ?? Math.random().toString(36).slice(2,8);
+      const pid = item.id ?? Math.random().toString(36).slice(2, 8);
       if (!map.has(pid)) map.set(pid, { product: item, variants: [] });
       else { const e = map.get(pid); e.product = { ...e.product, ...item }; }
     });
@@ -159,9 +159,29 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
 
   const handleProductSaved = async (savedProduct) => { setEditingProduct(null); setActiveSubTab('my-products'); await loadProducts(); if (onDataChange) onDataChange(); };
 
+  // src/components/ProductManagement.jsx
+
   if (activeSubTab === 'add-product') {
-    return <AdminAddProduct editingProduct={editingProduct} onSaved={handleProductSaved} onCancel={() => { setEditingProduct(null); setActiveSubTab('my-products'); }} />;
+    return (
+      <AdminAddProduct
+        editingProduct={editingProduct}
+        onSaved={handleProductSaved}
+        onCancel={() => {
+          setEditingProduct(null);
+          setActiveSubTab('my-products');
+        }}
+
+        // ✅ THÊM: sau khi xóa category -> quay về my-products và reload list
+        onCategoryDeleted={async () => {
+          setEditingProduct(null);
+          setActiveSubTab('my-products');
+          await loadProducts();
+          if (onDataChange) onDataChange();
+        }}
+      />
+    );
   }
+
 
   if (loading) return (
     <div className="product-management">
@@ -198,16 +218,16 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
             </div>
             <div>
               <label className="filter-label">Số lượng</label>
-              <div style={{ display:'flex', gap:8 }}>
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.quantityMin} onChange={(e) => handleFilterChange('quantityMin', e.target.value)} placeholder="Tối thiểu" />
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.quantityMax} onChange={(e) => handleFilterChange('quantityMax', e.target.value)} placeholder="Tối đa" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.quantityMin} onChange={(e) => handleFilterChange('quantityMin', e.target.value)} placeholder="Tối thiểu" />
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.quantityMax} onChange={(e) => handleFilterChange('quantityMax', e.target.value)} placeholder="Tối đa" />
               </div>
             </div>
             <div>
               <label className="filter-label">Giá (VNĐ)</label>
-              <div style={{ display:'flex', gap:8 }}>
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.priceMin} onChange={(e) => handleFilterChange('priceMin', e.target.value)} placeholder="Tối thiểu" />
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.priceMax} onChange={(e) => handleFilterChange('priceMax', e.target.value)} placeholder="Tối đa" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.priceMin} onChange={(e) => handleFilterChange('priceMin', e.target.value)} placeholder="Tối thiểu" />
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.priceMax} onChange={(e) => handleFilterChange('priceMax', e.target.value)} placeholder="Tối đa" />
               </div>
             </div>
           </div>
@@ -297,7 +317,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                       if (vSize) metaParts.push(`Size: ${vSize}`);
                       if (vColor) metaParts.push(`Color: ${vColor}`);
                       if (v.attributes) {
-                        const other = Object.entries(v.attributes).filter(([k]) => k !== 'size' && k !== 'color').map(([k,val]) => `${k}:${val}`);
+                        const other = Object.entries(v.attributes).filter(([k]) => k !== 'size' && k !== 'color').map(([k, val]) => `${k}:${val}`);
                         if (other.length) metaParts.push(other.join(' • '));
                       }
 
@@ -308,8 +328,8 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                               <div className="variant-product-content">
                                 <img src={v.thumbnail || product.thumbnail || placeholderImage} alt={v.sku || v.id} className="variant-thumbnail" />
                                 <div className="variant-main-inline">
-                                  <div style={{ fontWeight:800, fontSize:13 }}>{v.sku ?? `Variant ${idx+1}`}</div>
-                                  <div className="variant-meta">{metaParts.join(' • ') || (v.attributes ? Object.entries(v.attributes).map(([k,val]) => `${k}:${val}`).join(' • ') : '')}</div>
+                                  <div style={{ fontWeight: 800, fontSize: 13 }}>{v.sku ?? `Variant ${idx + 1}`}</div>
+                                  <div className="variant-meta">{metaParts.join(' • ') || (v.attributes ? Object.entries(v.attributes).map(([k, val]) => `${k}:${val}`).join(' • ') : '')}</div>
                                 </div>
                               </div>
                               <div className="variant-right-info">
