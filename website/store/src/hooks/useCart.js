@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { cartService } from "../services/api";
 import { getSessionId } from "../utils/session";
 import { useAuth } from "../contexts/AuthContext";
-import { useAuth } from "../contexts/AuthContext";
 
 export function useCart() {
   const { user, isAuthenticated } = useAuth();
@@ -151,22 +150,6 @@ export function useCart() {
     return () => window.removeEventListener("auth:logout", onLogout);
   }, []);
 
-  // ================== EXPOSE ==================
-  return {
-  // ================== RESET KHI LOGOUT ==================
-  useEffect(() => {
-    const onLogout = () => {
-      console.debug("[useCart] auth:logout → reset FE cart");
-      setCart({ id: null, items: [] });
-      setHasMerged(false);
-      setSessionId(getSessionId());
-    };
-
-    window.addEventListener("auth:logout", onLogout);
-    return () => window.removeEventListener("auth:logout", onLogout);
-  }, []);
-
-  // ================== EXPOSE ==================
   return {
     cart,
     loading,
@@ -192,4 +175,5 @@ export function useCart() {
       );
     },
   };
+  }
 }

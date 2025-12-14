@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useNavigate, useParams } from "react-router-dom";
 import { Layout } from "../components";
 import { useCart } from "../contexts";
 import { getGroupedCategories } from "../services/categories";
@@ -9,7 +8,6 @@ import "./ProductListPage.css";
 
 const TITLE_LABELS = { men: "Nam", women: "Nữ", accessories: "Phụ kiện", kids: "Kids" };
 
-const TITLE_LABELS = { men: "Nam", women: "Nữ", accessories: "Phụ kiện", kids: "Kids" };
 
 export default function ProductListPage() {
   const navigate = useNavigate();

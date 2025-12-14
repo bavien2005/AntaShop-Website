@@ -1,18 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import React, { useEffect, useRef, useState } from "react";
 import "./header.css";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart, useAuth } from "../contexts";
 import SearchDrawer from "./overlays/SearchDrawer";
 import { ROUTES, MENU_ITEMS } from "../constants";
-import { getGroupedCategories } from "../services/categories";
-
-const CANON_TITLES = [
-  { key: "men", label: "NAM" },
-  { key: "women", label: "NỮ" },
-  { key: "accessories", label: "PHỤ KIỆN" },
-  { key: "kids", label: "KIDS" },
-];
 import { getGroupedCategories } from "../services/categories";
 
 const CANON_TITLES = [
@@ -95,7 +86,6 @@ const Header = () => {
   };
 
   const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
-  const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
   const handleLogout = () => {
     logout();
     navigate(ROUTES.HOME);
@@ -115,7 +105,6 @@ const Header = () => {
               onClick={handleMobileMenuToggle}
               aria-label="Menu"
             >
-              <span className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}>
               <span className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}>
                 <span></span>
                 <span></span>

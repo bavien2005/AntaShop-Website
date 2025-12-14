@@ -31,12 +31,6 @@ export const notificationService = {
     return res.data; // {success, message, requestId}
   }
 };
-export const notificationService = {
-  sendOrderSuccess: async (payload) => {
-    const res = await api.post('/api/notifications/order-success', payload);
-    return res.data; // {success, message, requestId}
-  }
-};
 // orderService: call order-service endpoints
 // orderService: call order-service endpoints
 export const orderService = {
@@ -144,7 +138,6 @@ export const orderService = {
     }
   },
   getOrders: async (params = {}) => {
-  getOrders: async (params = {}) => {
     try {
       const res = await orderApi.get('/api/orders', { params });
       const data = res.data;
@@ -162,6 +155,7 @@ export const orderService = {
       throw new Error(msg);
     }
   },
+
   cancelOrder: async (orderId) => {
     try {
       const res = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/cancel`);
@@ -367,10 +361,7 @@ export const revenueService = {
   }
 };
 
-// Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
-=======
-// direct cart-service fallback
->>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
+
 const getCartDirectly = async (userId, sessionId) => {
   try {
     const params = new URLSearchParams();

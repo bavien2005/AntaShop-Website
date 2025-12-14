@@ -150,50 +150,60 @@ export default function AdminAddProduct({
       }));
 
       // merge cloud metadata (id/isMain) when editing
-      (async () => {
-        try {
-          const resp = await cloudApi.get(`/api/cloud/product/${editingProduct.id}`);
-          const files = Array.isArray(resp?.data) ? resp.data : [];
-          if (!files.length) return;
+     // --- merge cloud metadata (id/isMain) when editing ---
+(async () => {
+  try {
+    const resp = await cloudApi.get(`/api/cloud/product/${editingProduct.id}`);
+    const files = Array.isArray(resp?.data) ? resp.data : [];
+    if (!files.length) return;
 
-          const urlMap = new Map(files.map((f) => [String(f.url), f]));
-          const filenameMap = new Map();
-          files.forEach((f) => {
-            const parts = String(f.url || "").split("/");
-            const tail = parts[parts.length - 1];
-            if (tail) filenameMap.set(tail, f);
-          });
+    const urlMap = new Map(files.map((f) => [String(f.url), f]));
+    const filenameMap = new Map();
+    files.forEach((f) => {
+      const parts = String(f.url || "").split("/");
+      const tail = parts[parts.length - 1];
+      if (tail) filenameMap.set(tail, f);
+    });
 
-          setForm((prev) => {
-            const base = Array.isArray(prev.images) ? prev.images.slice() : [];
-            const merged = base.map((img) => {
-              if (!img) return img;
-              const exact = urlMap.get(String(img.src));
-              if (exact)
-                return {
-                  ...img,
-                  id: exact.id ?? exact._id ?? img.id,
-                  isMain: Boolean(exact.isMain) ?? img.isMain,
-                };
-              const tail = String(img.src || "").split("/").pop();
-              const fb = filenameMap.get(tail);
-              if (fb)
-                return {
-                  ...img,
-                  id: fb.id ?? fb._id ?? img.id,
-                  isMain: Boolean(fb.isMain) ?? img.isMain,
-                };
-              return img;
-            });
+    setForm((prev) => {
+      const base = Array.isArray(prev.images) ? prev.images.slice() : [];
+      const merged = base.map((img) => {
+        if (!img) return img;
 
-            if (!merged.some((m) => m && m.isMain) && merged.length) merged[0].isMain = true;
-            const mainImg = merged.find((m) => m && m.isMain);
-            const thumbnail = mainImg?.src || prev.thumbnail || "";
-            return { ...prev, images: merged, thumbnail };
-          });
-        } catch { }
-        } catch { }
-      })();
+        // normalize src (so sánh đúng với thumbnail)
+        const src = img.src || "";
+        const exact = urlMap.get(String(src));
+        if (exact)
+          return {
+            ...img,
+            id: exact.id ?? exact._id ?? img.id,
+            // dùng nullish coalescing thay vì Boolean(...) ?? ...
+            isMain: exact.isMain ?? img.isMain,
+          };
+
+        const tail = String(src).split("/").pop();
+        const fb = filenameMap.get(tail);
+        if (fb)
+          return {
+            ...img,
+            id: fb.id ?? fb._id ?? img.id,
+            isMain: fb.isMain ?? img.isMain,
+          };
+
+        return img;
+      });
+
+      if (!merged.some((m) => m && m.isMain) && merged.length) merged[0].isMain = true;
+      const mainImg = merged.find((m) => m && m.isMain);
+      const thumbnail = mainImg?.src || prev.thumbnail || "";
+      return { ...prev, images: merged, thumbnail };
+    });
+  } catch (e) {
+    // optional: console.warn("cloud metadata merge failed", e);
+  }
+})();
+
+        
 
       const mappedVariants = Array.isArray(editingProduct.variants)
         ? editingProduct.variants.map((v) => ({
@@ -215,6 +225,7 @@ export default function AdminAddProduct({
       console.warn("Error mapping editingProduct into form", e);
     }
   }, [editingProduct]);
+
 
   // ---------- HELPERS ----------
   const onChange = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
@@ -393,7 +404,6 @@ export default function AdminAddProduct({
           url: u?.url ?? u?.secure_url ?? u?.fileUrl ?? u?.path ?? null,
         }));
 
-        const newImages = imagesSnapshot.slice();
         const newImages = imagesSnapshot.slice();
         normalizedUploaded.forEach((up, i) => {
           const mapping = pendingIndexed[i];

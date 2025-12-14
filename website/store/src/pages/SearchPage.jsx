@@ -10,20 +10,15 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const query = (searchParams.get("q") || "").trim();
-  const query = (searchParams.get("q") || "").trim();
 
-  // ✅ dùng categoryId (string) để filter cho chắc
+  // filters: chuẩn hoá kiểu (categoryIds là array của string)
   const [filters, setFilters] = useState({
     categoryIds: [], // ["1","2"]
     price: "",
     size: [],
     color: [],
     brand: [],
-    brand: [],
   });
-
-  const [sortBy, setSortBy] = useState("popular");
-  const [viewMode, setViewMode] = useState("grid");
 
   const [sortBy, setSortBy] = useState("popular");
   const [viewMode, setViewMode] = useState("grid");
@@ -44,13 +39,20 @@ export default function SearchPage() {
   const normalizeText = (v) => (v == null ? "" : String(v).trim());
 
   const getImage = (p) => {
-    return (
-      p?.thumbnail ||
-      p?.image ||
-      p?.imageUrl ||
-      (Array.isArray(p?.images) && p.images[0]) ||
-      "https://via.placeholder.com/600x600?text=No+Image"
-    );
+    // return a usable URL string for image preview
+    if (!p) return "https://via.placeholder.com/600x600?text=No+Image";
+    if (p?.thumbnail) return p.thumbnail;
+    if (p?.image) return p.image;
+    if (p?.imageUrl) return p.imageUrl;
+    if (Array.isArray(p?.images) && p.images.length) {
+      const first = p.images[0];
+      if (!first) return "https://via.placeholder.com/600x600?text=No+Image";
+      // if it's string
+      if (typeof first === "string") return first;
+      // if it's object with common props
+      return first?.src || first?.url || first?.fileUrl || first?.path || "https://via.placeholder.com/600x600?text=No+Image";
+    }
+    return "https://via.placeholder.com/600x600?text=No+Image";
   };
 
   const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
@@ -89,11 +91,8 @@ export default function SearchPage() {
   };
 
   const resolveCategorySlug = (p) => {
-    // nếu sản phẩm có sẵn slug thì dùng, không thì lookup theo categoryId
     const direct =
-      normalizeText(p?.categorySlug).toLowerCase() ||
-      normalizeText(p?.category?.slug).toLowerCase() ||
-      normalizeText(p?.slug).toLowerCase();
+      (normalizeText(p?.categorySlug) || normalizeText(p?.category?.slug) || normalizeText(p?.slug) || "").toLowerCase();
 
     if (direct) return direct;
 
@@ -153,7 +152,6 @@ export default function SearchPage() {
     const run = async () => {
       setLoading(true);
       try {
-        // searchProducts(q) của bạn đang gọi /api/product/search?q=
         const data = await productService.searchProducts(query);
 
         const raw = data?.data ?? data;
@@ -200,7 +198,7 @@ export default function SearchPage() {
     return () => {
       mounted = false;
     };
-  }, [query, catById]); // catById thay đổi -> resolve slug chuẩn hơn
+  }, [query, catById]);
 
   // ---------- dynamic filter options from results ----------
   const availableBrands = useMemo(() => {
@@ -215,18 +213,14 @@ export default function SearchPage() {
     return uniq(products.flatMap((p) => p.colors || []));
   }, [products]);
 
-  // categories for sidebar: nếu có categories API -> dùng theo API
-  // nếu không có -> fallback từ products (categoryId + categoryName)
   const availableCategories = useMemo(() => {
     if (categoryOptions.length > 0) {
-      // chỉ show những category thực sự xuất hiện trong kết quả search (đỡ dài)
       const used = new Set(products.map((p) => p.categoryId).filter(Boolean));
       return categoryOptions
         .filter((c) => used.has(c.id))
         .sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi"));
     }
 
-    // fallback
     const map = {};
     products.forEach((p) => {
       if (!p.categoryId) return;
@@ -252,7 +246,6 @@ export default function SearchPage() {
       price: "",
       size: [],
       color: [],
-      brand: [],
       brand: [],
     });
   };
@@ -293,9 +286,6 @@ export default function SearchPage() {
       return true;
     });
   }, [products, filters]);
-      return true;
-    });
-  }, [products, filters]);
 
   // ---------- sorting ----------
   const sortedProducts = useMemo(() => {
@@ -326,9 +316,6 @@ export default function SearchPage() {
             <Link to="/home" className="breadcrumb-link">
               Trang chủ
             </Link>
-            <Link to="/home" className="breadcrumb-link">
-              Trang chủ
-            </Link>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-current">Tìm kiếm</span>
           </div>
@@ -337,9 +324,6 @@ export default function SearchPage() {
         <div className="search-container">
           <div className="search-header">
             <h1>Kết quả tìm kiếm {query && `cho "${query}"`}</h1>
-            <p className="result-count">
-              {loading ? "Đang tải..." : `${sortedProducts.length} sản phẩm`}
-            </p>
             <p className="result-count">
               {loading ? "Đang tải..." : `${sortedProducts.length} sản phẩm`}
             </p>
@@ -353,15 +337,8 @@ export default function SearchPage() {
                   Xóa tất cả
                 </button>
               </div>
-            <aside className="filters-sidebar">
-              <div className="filters-header">
-                <h3>Bộ lọc</h3>
-                <button className="clear-filters-btn" onClick={clearFilters}>
-                  Xóa tất cả
-                </button>
-              </div>
 
-              {/* ✅ Danh mục: lấy từ API categories/grouped hoặc fallback từ products */}
+              {/* Danh mục */}
               <div className="filter-section">
                 <h4 className="filter-title">Danh mục</h4>
                 <div className="filter-options">
@@ -382,6 +359,7 @@ export default function SearchPage() {
                 </div>
               </div>
 
+              {/* Khoảng giá */}
               <div className="filter-section">
                 <h4 className="filter-title">Khoảng giá</h4>
                 <div className="filter-options">
@@ -404,7 +382,7 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* ✅ Size: lấy động từ variants */}
+              {/* Size */}
               <div className="filter-section">
                 <h4 className="filter-title">Kích thước</h4>
                 <div className="filter-options size-grid">
@@ -425,7 +403,7 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* ✅ Color: lấy động từ variants */}
+              {/* Color */}
               <div className="filter-section">
                 <h4 className="filter-title">Màu sắc</h4>
                 <div className="filter-options color-grid">
@@ -440,7 +418,6 @@ export default function SearchPage() {
                         onClick={() => toggleArrayFilter("color", String(name))}
                         title={name}
                       >
-                        {/* nếu CSS đang dùng swatch thì vẫn ok; không có thì vẫn hiện tên */}
                         <span className="color-swatch" />
                         <span style={{ fontSize: 12, marginLeft: 6 }}>{name}</span>
                       </button>
@@ -449,7 +426,7 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* ✅ Brand: lấy động từ products */}
+              {/* Brand */}
               <div className="filter-section">
                 <h4 className="filter-title">Thương hiệu</h4>
                 <div className="filter-options">
@@ -487,42 +464,7 @@ export default function SearchPage() {
                     <option value="price-desc">Giá: Cao đến thấp</option>
                   </select>
                 </div>
-            <main className="results-main">
-              <div className="results-toolbar">
-                <div className="sort-section">
-                  <label htmlFor="sort">Sắp xếp:</label>
-                  <select
-                    id="sort"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="sort-select"
-                  >
-                    <option value="popular">Phổ biến</option>
-                    <option value="newest">Mới nhất</option>
-                    <option value="price-asc">Giá: Thấp đến cao</option>
-                    <option value="price-desc">Giá: Cao đến thấp</option>
-                  </select>
-                </div>
 
-                <div className="view-toggle">
-                  <button
-                    type="button"
-                    className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
-                    onClick={() => setViewMode("grid")}
-                    title="Xem dạng lưới"
-                  >
-                    ⊞
-                  </button>
-                  <button
-                    type="button"
-                    className={`view-btn ${viewMode === "list" ? "active" : ""}`}
-                    onClick={() => setViewMode("list")}
-                    title="Xem dạng danh sách"
-                  >
-                    ☰
-                  </button>
-                </div>
-              </div>
                 <div className="view-toggle">
                   <button
                     type="button"
@@ -593,19 +535,6 @@ export default function SearchPage() {
                 </div>
               )}
 
-              {sortedProducts.length > 0 && !loading && (
-                <div className="pagination">
-                  <button className="page-btn" disabled>
-                    Trước
-                  </button>
-                  <button className="page-btn active">1</button>
-                  <button className="page-btn">2</button>
-                  <button className="page-btn">3</button>
-                  <button className="page-btn">Sau</button>
-                </div>
-              )}
-            </main>
-          </div>
               {sortedProducts.length > 0 && !loading && (
                 <div className="pagination">
                   <button className="page-btn" disabled>

@@ -310,9 +310,7 @@ import { productApi } from "../api";
 const USE_REAL_PRODUCT_API = Boolean(
   import.meta.env.VITE_PRODUCT_SERVICE_URL || import.meta.env.VITE_API_URL
 );
-const USE_REAL_PRODUCT_API = Boolean(
-  import.meta.env.VITE_PRODUCT_SERVICE_URL || import.meta.env.VITE_API_URL
-);
+
 
 const PRODUCT_BASE = "/api/product";
 
@@ -414,9 +412,8 @@ const normalizeFromBackend = (p = {}) => {
       const parsed = JSON.parse(p.images);
       imagesArr = Array.isArray(parsed) ? parsed : [parsed];
     } catch {
-    } catch {
-      imagesArr = p.images ? [p.images] : [];
-    }
+    } 
+      imagesArr = p.images ? [p.images] : [];   
   } else if (p.image) imagesArr = [p.image];
 
   const safeImages = imagesArr
@@ -459,8 +456,6 @@ const normalizeFromBackend = (p = {}) => {
   const pPrice = parsePriceValue(p.price);
   const vPrices = variants.map((v) => v.price).filter((x) => x > 0);
   const computedPrice = pPrice > 0 ? pPrice : vPrices.length ? Math.min(...vPrices) : 0;
-  const vPrices = variants.map((v) => v.price).filter((x) => x > 0);
-  const computedPrice = pPrice > 0 ? pPrice : vPrices.length ? Math.min(...vPrices) : 0;
 
   const totalStock =
     p.totalStock !== undefined && p.totalStock !== null
@@ -494,10 +489,8 @@ const normalizeFromBackend = (p = {}) => {
 /* ---------------- API ---------------- */
 export const adminProductService = {
   async getProducts(filters = {}) {
-  async getProducts(filters = {}) {
     if (USE_REAL_PRODUCT_API) {
       try {
-        const res = await productApi.get(`${PRODUCT_BASE}/all`, { params: filters });
         const res = await productApi.get(`${PRODUCT_BASE}/all`, { params: filters });
         const data = res.data;
         const list =
@@ -523,14 +516,11 @@ export const adminProductService = {
 
   async getProduct(id) {
 
-  async getProduct(id) {
     if (USE_REAL_PRODUCT_API) {
       try {
         const res = await productApi.get(`${PRODUCT_BASE}/${id}`);
-        const res = await productApi.get(`${PRODUCT_BASE}/${id}`);
         return { success: true, data: normalizeFromBackend(res.data) };
       } catch (err) {
-        return { success: false, error: err?.message || "API error" };
         return { success: false, error: err?.message || "API error" };
       }
     }
@@ -542,10 +532,8 @@ export const adminProductService = {
   },
 
   async syncProductImages(productId) {
-  async syncProductImages(productId) {
     if (USE_REAL_PRODUCT_API) {
       try {
-        const res = await productApi.put(`${PRODUCT_BASE}/sync-images/${productId}`);
         const res = await productApi.put(`${PRODUCT_BASE}/sync-images/${productId}`);
         return { success: true, data: normalizeFromBackend(res.data) };
       } catch (err) {
@@ -564,9 +552,7 @@ export const adminProductService = {
   },
 
   async createProduct(productData) {
-    // Payload cho BE: phải có categoryId nếu chọn
-  async createProduct(productData) {
-    // Payload cho BE: phải có categoryId nếu chọn
+    // Payload cho BE: phải có categoryId nếu chọn    // Payload cho BE: phải có categoryId nếu chọn
     const payload = {
       name: productData.name,
       brand: productData.brand || null,
@@ -584,13 +570,6 @@ export const adminProductService = {
         null,
       variants: Array.isArray(productData.variants)
         ? productData.variants.map((v) => ({
-            sku: v.sku,
-            price: v.price ?? 0,
-            stock: v.quantity ?? v.stock ?? 0,
-            size: v.size ?? null,
-            color: v.color ?? null,
-            attributes: v.attributes ?? null,
-          }))
             sku: v.sku,
             price: v.price ?? 0,
             stock: v.quantity ?? v.stock ?? 0,
@@ -661,7 +640,6 @@ export const adminProductService = {
     };
   },
 
-  async updateProduct(id, productData) {
   async updateProduct(id, productData) {
     const payload = {
       name: productData.name,
@@ -756,10 +734,8 @@ export const adminProductService = {
   },
 
   async deleteProduct(id) {
-  async deleteProduct(id) {
     if (USE_REAL_PRODUCT_API) {
       try {
-        const res = await productApi.delete(`${PRODUCT_BASE}/delete/${id}`);
         const res = await productApi.delete(`${PRODUCT_BASE}/delete/${id}`);
         return { success: true, data: res.data, message: "Xóa thành công" };
       } catch (err) {
