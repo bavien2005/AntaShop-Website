@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from "react";
 import { STORAGE_KEYS } from "../constants";
+import { createNewSessionId } from "../utils/session";
 import { authService } from "../services/api";
 import api from "../services/api";
 import { createNewSessionId } from "../utils/session";

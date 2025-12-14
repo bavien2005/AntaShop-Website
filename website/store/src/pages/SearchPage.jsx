@@ -10,6 +10,7 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const query = (searchParams.get("q") || "").trim();
+  const query = (searchParams.get("q") || "").trim();
 
   // ✅ dùng categoryId (string) để filter cho chắc
   const [filters, setFilters] = useState({
@@ -18,7 +19,11 @@ export default function SearchPage() {
     size: [],
     color: [],
     brand: [],
+    brand: [],
   });
+
+  const [sortBy, setSortBy] = useState("popular");
+  const [viewMode, setViewMode] = useState("grid");
 
   const [sortBy, setSortBy] = useState("popular");
   const [viewMode, setViewMode] = useState("grid");
@@ -248,6 +253,7 @@ export default function SearchPage() {
       size: [],
       color: [],
       brand: [],
+      brand: [],
     });
   };
 
@@ -287,6 +293,9 @@ export default function SearchPage() {
       return true;
     });
   }, [products, filters]);
+      return true;
+    });
+  }, [products, filters]);
 
   // ---------- sorting ----------
   const sortedProducts = useMemo(() => {
@@ -317,6 +326,9 @@ export default function SearchPage() {
             <Link to="/home" className="breadcrumb-link">
               Trang chủ
             </Link>
+            <Link to="/home" className="breadcrumb-link">
+              Trang chủ
+            </Link>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-current">Tìm kiếm</span>
           </div>
@@ -328,9 +340,19 @@ export default function SearchPage() {
             <p className="result-count">
               {loading ? "Đang tải..." : `${sortedProducts.length} sản phẩm`}
             </p>
+            <p className="result-count">
+              {loading ? "Đang tải..." : `${sortedProducts.length} sản phẩm`}
+            </p>
           </div>
 
           <div className="search-layout">
+            <aside className="filters-sidebar">
+              <div className="filters-header">
+                <h3>Bộ lọc</h3>
+                <button className="clear-filters-btn" onClick={clearFilters}>
+                  Xóa tất cả
+                </button>
+              </div>
             <aside className="filters-sidebar">
               <div className="filters-header">
                 <h3>Bộ lọc</h3>
@@ -465,7 +487,42 @@ export default function SearchPage() {
                     <option value="price-desc">Giá: Cao đến thấp</option>
                   </select>
                 </div>
+            <main className="results-main">
+              <div className="results-toolbar">
+                <div className="sort-section">
+                  <label htmlFor="sort">Sắp xếp:</label>
+                  <select
+                    id="sort"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="sort-select"
+                  >
+                    <option value="popular">Phổ biến</option>
+                    <option value="newest">Mới nhất</option>
+                    <option value="price-asc">Giá: Thấp đến cao</option>
+                    <option value="price-desc">Giá: Cao đến thấp</option>
+                  </select>
+                </div>
 
+                <div className="view-toggle">
+                  <button
+                    type="button"
+                    className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+                    onClick={() => setViewMode("grid")}
+                    title="Xem dạng lưới"
+                  >
+                    ⊞
+                  </button>
+                  <button
+                    type="button"
+                    className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+                    onClick={() => setViewMode("list")}
+                    title="Xem dạng danh sách"
+                  >
+                    ☰
+                  </button>
+                </div>
+              </div>
                 <div className="view-toggle">
                   <button
                     type="button"
@@ -536,6 +593,19 @@ export default function SearchPage() {
                 </div>
               )}
 
+              {sortedProducts.length > 0 && !loading && (
+                <div className="pagination">
+                  <button className="page-btn" disabled>
+                    Trước
+                  </button>
+                  <button className="page-btn active">1</button>
+                  <button className="page-btn">2</button>
+                  <button className="page-btn">3</button>
+                  <button className="page-btn">Sau</button>
+                </div>
+              )}
+            </main>
+          </div>
               {sortedProducts.length > 0 && !loading && (
                 <div className="pagination">
                   <button className="page-btn" disabled>

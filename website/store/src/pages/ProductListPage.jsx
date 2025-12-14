@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Layout } from "../components";
 import { useCart } from "../contexts";
 import { getGroupedCategories } from "../services/categories";
 import { productService } from "../services/api"; // ✅ dùng đúng service
 import "./ProductListPage.css";
+
+const TITLE_LABELS = { men: "Nam", women: "Nữ", accessories: "Phụ kiện", kids: "Kids" };
 
 const TITLE_LABELS = { men: "Nam", women: "Nữ", accessories: "Phụ kiện", kids: "Kids" };
 
@@ -262,6 +265,7 @@ export default function ProductListPage() {
       if (priceRange === "1m-2m") return price >= 1_000_000 && price <= 2_000_000;
       if (priceRange === "over2m") return price > 2_000_000;
       return true;
+      return true;
     });
 
     // sorting
@@ -290,7 +294,7 @@ export default function ProductListPage() {
     }
 
     return list;
-  }, [allProducts, selectedCategory, selectedSize, priceRange, sortBy]);
+  }, [allProducts, selectedCategory, selectedSize, priceRange, sortBy, slug]);
 
   const handleProductClick = (productId) => navigate(`/product/${productId}`);
 
@@ -338,6 +342,7 @@ export default function ProductListPage() {
       <div className="product-list-page">
         <div className="page-header">
           <div className="container">
+            <h1 className="page-title">{pageTitle}</h1>
             <h1 className="page-title">{pageTitle}</h1>
             <p className="page-subtitle">Khám phá bộ sưu tập sản phẩm chính hãng</p>
           </div>
@@ -517,3 +522,4 @@ export default function ProductListPage() {
     </Layout>
   );
 }
+

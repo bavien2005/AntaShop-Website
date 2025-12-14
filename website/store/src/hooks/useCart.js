@@ -1,7 +1,7 @@
-// src/hooks/useCart.js
 import { useEffect, useState, useCallback } from "react";
 import { cartService } from "../services/api";
 import { getSessionId } from "../utils/session";
+import { useAuth } from "../contexts/AuthContext";
 import { useAuth } from "../contexts/AuthContext";
 
 export function useCart() {
@@ -119,6 +119,7 @@ export function useCart() {
   };
 
   const updateQuantity = async (productId, variantId, quantity) => {
+  const updateQuantity = async (productId, variantId, quantity) => {
     if (!cart?.id) return;
 
     const resolvedVariant =
@@ -152,6 +153,21 @@ export function useCart() {
 
   // ================== EXPOSE ==================
   return {
+  // ================== RESET KHI LOGOUT ==================
+  useEffect(() => {
+    const onLogout = () => {
+      console.debug("[useCart] auth:logout → reset FE cart");
+      setCart({ id: null, items: [] });
+      setHasMerged(false);
+      setSessionId(getSessionId());
+    };
+
+    window.addEventListener("auth:logout", onLogout);
+    return () => window.removeEventListener("auth:logout", onLogout);
+  }, []);
+
+  // ================== EXPOSE ==================
+  return {
     cart,
     loading,
     addItem,
@@ -159,6 +175,7 @@ export function useCart() {
     updateQuantity,
     refreshCart: fetchCart,
 
+    // 👇 dùng cho badge giỏ hàng
     get items() {
       return cart?.items || [];
     },

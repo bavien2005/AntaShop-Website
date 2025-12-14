@@ -41,6 +41,7 @@ export default function AdminAddProduct({
     thumbnail: "",
   });
 
+
   const [variants, setVariants] = useState([]);
   const [loading, setLoading] = useState(false);
   const [globalLoadingText, setGlobalLoadingText] = useState(null);
@@ -87,6 +88,7 @@ export default function AdminAddProduct({
     }
   }, [editingProduct, categories]);
 
+  // ---------- RESET / MAP EDIT ----------
   // ---------- RESET / MAP EDIT ----------
   useEffect(() => {
     if (!editingProduct) {
@@ -190,6 +192,7 @@ export default function AdminAddProduct({
             return { ...prev, images: merged, thumbnail };
           });
         } catch { }
+        } catch { }
       })();
 
       const mappedVariants = Array.isArray(editingProduct.variants)
@@ -269,6 +272,7 @@ export default function AdminAddProduct({
   const removeVariant = (i) => setVariants((prev) => prev.filter((_, idx) => idx !== i));
 
   // ---------- VALIDATION ----------
+  // ---------- VALIDATION ----------
   const validate = () => {
     if (!form.name) return alert("Nhập tên sản phẩm");
     if (!form.category) return alert("Chọn danh mục");
@@ -277,7 +281,6 @@ export default function AdminAddProduct({
       if (!form.price) return alert("Nhập giá");
       if (!form.totalStock) return alert("Nhập tổng kho");
     }
-
     for (let i = 0; i < variants.length; i++) {
       if (!variants[i].price) return alert(`Variant #${i + 1}: thiếu giá`);
       if (!variants[i].stock) return alert(`Variant #${i + 1}: thiếu stock`);
@@ -344,6 +347,7 @@ export default function AdminAddProduct({
       if (!productId) throw new Error("Product ID not returned");
 
       // ---------- UPLOAD IMAGES ----------
+      // ---------- UPLOAD IMAGES ----------
       const imagesSnapshot = Array.isArray(form.images) ? [...form.images] : [];
       const pendingIndexed = imagesSnapshot
         .map((img, idx) => ({ img, idx }))
@@ -389,6 +393,7 @@ export default function AdminAddProduct({
           url: u?.url ?? u?.secure_url ?? u?.fileUrl ?? u?.path ?? null,
         }));
 
+        const newImages = imagesSnapshot.slice();
         const newImages = imagesSnapshot.slice();
         normalizedUploaded.forEach((up, i) => {
           const mapping = pendingIndexed[i];
@@ -457,6 +462,7 @@ export default function AdminAddProduct({
       }
     } catch (err) {
       console.error(err);
+      alert("Lỗi: " + (err?.response?.data?.message || err?.message || err));
       alert("Lỗi: " + (err?.response?.data?.message || err?.message || err));
     } finally {
       setLoading(false);
@@ -627,6 +633,7 @@ export default function AdminAddProduct({
         </div>
 
         {/* RIGHT */}
+        {/* RIGHT */}
         <div className="category-section-sidebar">
           <div className="section-card">
             <h3 className="section-card-title">Nhóm (title) & Danh mục</h3>
@@ -646,7 +653,25 @@ export default function AdminAddProduct({
               </select>
             </div>
 
+            {/* SELECT NHÓM (TITLE) */}
             <div className="form-input-group">
+              <label className="input-label">Chọn nhóm (title)</label>
+              <select
+                className="form-text-input"
+                value={titleFilter}
+                onChange={(e) => setTitleFilter(e.target.value)}
+              >
+                {CANON_TITLES.map(t => (
+                  <option key={t.key} value={t.key}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* TẠO NHANH DANH MỤC */}
+            <div className="form-input-group">
+              <label className="input-label">Tạo danh mục mới (thuộc nhóm đang chọn)</label>
               <label className="input-label">Tạo danh mục mới (thuộc nhóm đang chọn)</label>
               <div className="add-category-row">
                 <input
@@ -722,6 +747,7 @@ export default function AdminAddProduct({
                   <span className="category-item-icon">
                     {form.category?.slug === cat.slug ? "●" : "○"}
                   </span>
+                  <span className="category-item-name">{cat.name}</span>
                   <span className="category-item-name">{cat.name}</span>
 
                   <button

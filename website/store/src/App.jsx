@@ -61,9 +61,10 @@ function App() {
                       <Route path="/exclusive" element={<ProductListPage />} />
                       <Route path="*" element={<Navigate to="/" />} />
                       <Route path="/test-cart" element={<TestCart />} />
-                      <Route path="/momo-return" element={<MomoReturnPage />} />
+                      <Route path="/momo-return" element={<MomoReturnPage/>} />
                       <Route path="/shop/:title" element={<ProductListPage />} />
                       <Route path="/shop/:title/:slug" element={<ProductListPage />} />
+
                     </Routes>
                   </Router>
                 </CartProvider>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./header.css";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart, useAuth } from "../contexts";
@@ -12,11 +13,20 @@ const CANON_TITLES = [
   { key: "accessories", label: "PHỤ KIỆN" },
   { key: "kids", label: "KIDS" },
 ];
+import { getGroupedCategories } from "../services/categories";
+
+const CANON_TITLES = [
+  { key: "men", label: "NAM" },
+  { key: "women", label: "NỮ" },
+  { key: "accessories", label: "PHỤ KIỆN" },
+  { key: "kids", label: "KIDS" },
+];
 
 const Header = () => {
   const navigate = useNavigate();
   const { totalItems } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
+
 
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -85,6 +95,7 @@ const Header = () => {
   };
 
   const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
+  const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
   const handleLogout = () => {
     logout();
     navigate(ROUTES.HOME);
@@ -104,6 +115,7 @@ const Header = () => {
               onClick={handleMobileMenuToggle}
               aria-label="Menu"
             >
+              <span className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}>
               <span className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}>
                 <span></span>
                 <span></span>
@@ -253,6 +265,8 @@ const Header = () => {
               onClick={() => {
                 if (isAuthenticated) navigate("/account/wishlist");
                 else navigate(ROUTES.LOGIN);
+                if (isAuthenticated) navigate("/account/wishlist");
+                else navigate(ROUTES.LOGIN);
               }}
               aria-label="Yêu thích"
             >
@@ -289,24 +303,12 @@ const Header = () => {
 
       {isMobileMenuOpen && (
         <div className="mobile-menu-backdrop" onClick={handleMobileMenuToggle}>
-          <div
-            className="mobile-menu-panel"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
             <div className="panel-header">
               <h3 className="panel-title">MENU</h3>
-              <button
-                className="panel-close"
-                onClick={handleMobileMenuToggle}
-                aria-label="Đóng"
-              >
+              <button className="panel-close" onClick={handleMobileMenuToggle} aria-label="Đóng">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M18 6L6 18M6 6L18 18"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
+                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
@@ -315,9 +317,7 @@ const Header = () => {
               {menuData.map((item) => (
                 <div key={item.id} className="panel-nav-item">
                   <span
-                    className={`panel-nav-text ${
-                      item.highlight ? "text-highlight" : ""
-                    }`}
+                    className={`panel-nav-text ${item.highlight ? "text-highlight" : ""}`}
                     onClick={() => handlePushRouter(item.link)}
                   >
                     {item.name}
@@ -335,10 +335,7 @@ const Header = () => {
                   </button>
                 </div>
               ) : (
-                <button
-                  className="auth-button"
-                  onClick={() => handlePushRouter(ROUTES.LOGIN)}
-                >
+                <button className="auth-button" onClick={() => handlePushRouter(ROUTES.LOGIN)}>
                   Đăng nhập
                 </button>
               )}
