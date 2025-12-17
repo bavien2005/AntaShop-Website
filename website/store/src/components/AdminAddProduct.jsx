@@ -277,7 +277,6 @@ export default function AdminAddProduct({
       if (!form.price) return alert("Nhập giá");
       if (!form.totalStock) return alert("Nhập tổng kho");
     }
-
     for (let i = 0; i < variants.length; i++) {
       if (!variants[i].price) return alert(`Variant #${i + 1}: thiếu giá`);
       if (!variants[i].stock) return alert(`Variant #${i + 1}: thiếu stock`);
@@ -379,7 +378,7 @@ export default function AdminAddProduct({
         try {
           const user = JSON.parse(localStorage.getItem("anta_user") || "null");
           if (user?.id) uploaderId = Number(user.id);
-        } catch { }
+        } catch {}
 
         const uploadedData = await uploadMultipleToCloud(filesToUpload, { uploaderId });
         const uploadedArr = Array.isArray(uploadedData) ? uploadedData : uploadedData?.data || [];

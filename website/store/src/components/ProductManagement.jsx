@@ -302,6 +302,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
             <div>
               <label className="filter-label">Số lượng</label>
               <div style={{ display: 'flex', gap: 8 }}>
+<<<<<<< HEAD
                 <input
                   type="number"
                   className="filter-input"
@@ -320,12 +321,17 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                   placeholder="Tối đa"
                   min="0"
                 />
+=======
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.quantityMin} onChange={(e) => handleFilterChange('quantityMin', e.target.value)} placeholder="Tối thiểu" />
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.quantityMax} onChange={(e) => handleFilterChange('quantityMax', e.target.value)} placeholder="Tối đa" />
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
               </div>
             </div>
 
             <div>
               <label className="filter-label">Giá (VNĐ)</label>
               <div style={{ display: 'flex', gap: 8 }}>
+<<<<<<< HEAD
                 <input
                   type="number"
                   className="filter-input"
@@ -344,6 +350,10 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                   placeholder="Tối đa"
                   min="0"
                 />
+=======
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.priceMin} onChange={(e) => handleFilterChange('priceMin', e.target.value)} placeholder="Tối thiểu" />
+                <input type="number" className="filter-input" style={{ flex: 1 }} value={filters.priceMax} onChange={(e) => handleFilterChange('priceMax', e.target.value)} placeholder="Tối đa" />
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
               </div>
             </div>
           </div>
@@ -459,6 +469,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                       </td>
                     </tr>
 
+<<<<<<< HEAD
 
                     {isExpanded && variantsCount > 0 && (
                       <tr className="variant-subrow">
@@ -466,6 +477,38 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                           <div className="variant-panel">
                             <div className="variant-panel-title">
                               Variants ({variantsCount})
+=======
+                    {/* variants - horizontal and aligned */}
+                    {isExpanded && variantsCount > 0 && variants.map((v, idx) => {
+                      const vid = v.id ?? `${pid}-v-${idx}`;
+                      const vPriceText = v.price !== undefined && v.price !== null ? `${formatPrice(Number(v.price))} VNĐ` : '—';
+                      const vStock = Number(v.stock ?? v.quantity ?? 0);
+                      const vSize = v.size ?? (v.attributes && v.attributes.size) ?? '';
+                      const vColor = v.color ?? (v.attributes && v.attributes.color) ?? '';
+                      const metaParts = [];
+                      if (vSize) metaParts.push(`Size: ${vSize}`);
+                      if (vColor) metaParts.push(`Color: ${vColor}`);
+                      if (v.attributes) {
+                        const other = Object.entries(v.attributes).filter(([k]) => k !== 'size' && k !== 'color').map(([k, val]) => `${k}:${val}`);
+                        if (other.length) metaParts.push(other.join(' • '));
+                      }
+
+                      return (
+                        <tr key={vid} className="variant-row">
+                          <td className="variant-detail-cell" colSpan={9}>
+                            <div className="variant-row-inner">
+                              <div className="variant-product-content">
+                                <img src={v.thumbnail || product.thumbnail || placeholderImage} alt={v.sku || v.id} className="variant-thumbnail" />
+                                <div className="variant-main-inline">
+                                  <div style={{ fontWeight: 800, fontSize: 13 }}>{v.sku ?? `Variant ${idx + 1}`}</div>
+                                  <div className="variant-meta">{metaParts.join(' • ') || (v.attributes ? Object.entries(v.attributes).map(([k, val]) => `${k}:${val}`).join(' • ') : '')}</div>
+                                </div>
+                              </div>
+                              <div className="variant-right-info">
+                                <span className="variant-price-text">{vPriceText}</span>
+                                <span className="variant-stock-text">SL: {vStock}</span>
+                              </div>
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
                             </div>
 
                             <div className="variant-grid">

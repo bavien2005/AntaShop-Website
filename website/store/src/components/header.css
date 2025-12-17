@@ -212,6 +212,7 @@
   gap: 6px;
 }
 
+/* menu con mượt + rõ ràng */
 .column-item span {
   font-size: 13px;
   color: #666;
@@ -435,4 +436,8 @@
   .header-action svg { width: 18px; height: 18px; }
   .action-count { top: 2px; right: 2px; min-width: 16px; height: 16px; font-size: 9px; }
   .wishlist-action { display: none; }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71

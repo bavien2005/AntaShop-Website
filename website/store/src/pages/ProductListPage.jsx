@@ -290,7 +290,7 @@ export default function ProductListPage() {
     }
 
     return list;
-  }, [allProducts, selectedCategory, selectedSize, priceRange, sortBy]);
+  }, [allProducts, selectedCategory, selectedSize, priceRange, sortBy, slug]);
 
   const handleProductClick = (productId) => navigate(`/product/${productId}`);
 

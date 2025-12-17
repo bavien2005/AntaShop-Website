@@ -1,3 +1,4 @@
+// src/utils/session.js
 export function getSessionId() {
     let sid = null;
     try {
@@ -23,5 +24,14 @@ export function createNewSessionId() {
     try {
         window.dispatchEvent(new CustomEvent("session:changed", { detail: { sessionId: sid } }));
     } catch (e) { /* ignore */ }
+<<<<<<< HEAD
     return sid;
 }
+=======
+    // notify other parts of app (useful for useCart listener)
+    try {
+        window.dispatchEvent(new CustomEvent("session:changed", { detail: { sessionId: sid } }));
+    } catch (e) { /* ignore */ }
+    return sid;
+}
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71

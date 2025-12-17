@@ -1,4 +1,3 @@
-// src/hooks/useCart.js
 import { useEffect, useState, useCallback } from "react";
 import { cartService } from "../services/api";
 import { getSessionId } from "../utils/session";
@@ -159,6 +158,7 @@ export function useCart() {
     updateQuantity,
     refreshCart: fetchCart,
 
+    // 👇 dùng cho badge giỏ hàng
     get items() {
       return cart?.items || [];
     },

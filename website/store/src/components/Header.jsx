@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
+<<<<<<< HEAD
+=======
+import React, { useEffect, useRef, useState } from "react";
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 import "./header.css";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart, useAuth } from "../contexts";
@@ -12,17 +16,65 @@ const CANON_TITLES = [
   { key: "accessories", label: "PHỤ KIỆN" },
   { key: "kids", label: "KIDS" },
 ];
+<<<<<<< HEAD
+=======
+import { getGroupedCategories } from "../services/categories";
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
 const Header = () => {
   const navigate = useNavigate();
   const { totalItems } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // timers để hover mượt
+<<<<<<< HEAD
+=======
+  
+  // menu tĩnh + động (danh mục)
+
+  useEffect(() => {
+    (async () => {
+      let grouped = {};
+      try {
+        grouped = await getGroupedCategories();
+      } catch (e) {
+        console.warn("load categories for header failed", e);
+      }
+
+      const dynamicGroups = CANON_TITLES.map((t) => ({
+        id: `dyn-${t.key}`,
+        name: t.label,
+        link: `/shop/${t.key}`,
+        hasDropdown: true,
+        dropdown: [
+          {
+            title: "Danh mục",
+            items: (grouped[t.key] || []).map((c) => ({
+              name: c.name,
+              link: `/shop/${t.key}/${c.slug}`,
+            })),
+          },
+        ],
+      }));
+
+      setMenuData([...MENU_ITEMS, ...dynamicGroups]);
+    })();
+
+    return () => {
+      window.clearTimeout(openTimeoutRef.current);
+      window.clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
+  // timers để hover mượt
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   const openTimeoutRef = useRef(null);
   const closeTimeoutRef = useRef(null);
 
@@ -75,6 +127,15 @@ const Header = () => {
     openTimeoutRef.current = window.setTimeout(() => {
       setActiveDropdown(itemId);
     }, 80);
+<<<<<<< HEAD
+=======
+  // Hover mượt: delay mở/đóng
+  const handleEnter = (itemId) => {
+    window.clearTimeout(closeTimeoutRef.current);
+    openTimeoutRef.current = window.setTimeout(() => {
+      setActiveDropdown(itemId);
+    }, 80);
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   };
 
   const handleLeave = () => {
@@ -82,6 +143,14 @@ const Header = () => {
     closeTimeoutRef.current = window.setTimeout(() => {
       setActiveDropdown(null);
     }, 140);
+<<<<<<< HEAD
+=======
+  const handleLeave = () => {
+    window.clearTimeout(openTimeoutRef.current);
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setActiveDropdown(null);
+    }, 140);
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   };
 
   const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
@@ -159,6 +228,46 @@ const Header = () => {
                         </svg>
                       )}
                     </Link>
+<<<<<<< HEAD
+=======
+              {menuData.map((item) => {
+                const isOpen = activeDropdown === item.id && item.hasDropdown;
+
+                return (
+                  <li
+                    key={item.id}
+                    className="navigation-item"
+                    onMouseEnter={() => item.hasDropdown && handleEnter(item.id)}
+                    onMouseLeave={handleLeave}
+                  >
+                    <Link to={item.link} className="nav-item-link">
+                      <span
+                        className={`nav-item-text ${
+                          item.highlight ? "text-highlight" : ""
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+
+                      {item.hasDropdown && (
+                        <svg
+                          className="nav-chevron"
+                          width="10"
+                          height="6"
+                          viewBox="0 0 10 6"
+                          fill="none"
+                        >
+                          <path
+                            d="M1 1L5 5L9 1"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </Link>
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
                     {item.hasDropdown && (
                       <div
@@ -201,6 +310,50 @@ const Header = () => {
                   </li>
                 );
               })}
+<<<<<<< HEAD
+=======
+                    {item.hasDropdown && (
+                      <div
+                        className={`navigation-dropdown ${isOpen ? "open" : ""}`}
+                        onMouseEnter={() => handleEnter(item.id)}
+                        onMouseLeave={handleLeave}
+                        aria-hidden={!isOpen}
+                      >
+                        <div className="dropdown-container">
+                          {item.dropdown.map((section, index) => (
+                            <div key={index} className="dropdown-column">
+                              <h4 className="column-title">{section.title}</h4>
+
+                              <ul className="column-items">
+                                {section.items.map((subItem, subIndex) => {
+                                  const label =
+                                    typeof subItem === "string"
+                                      ? subItem
+                                      : subItem.name;
+
+                                  const toLink =
+                                    typeof subItem === "string"
+                                      ? item.link
+                                      : subItem.link;
+
+                                  return (
+                                    <li key={subIndex} className="column-item">
+                                      <span onClick={() => handlePushRouter(toLink)}>
+                                        {label}
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
             </ul>
           </nav>
 
@@ -234,6 +387,12 @@ const Header = () => {
                 if (!isAuthenticated) navigate(ROUTES.LOGIN);
                 else if (user?.role === "ADMIN") navigate(ROUTES.ADMIN);
                 else navigate("/account");
+<<<<<<< HEAD
+=======
+                if (!isAuthenticated) navigate(ROUTES.LOGIN);
+                else if (user?.role === "ADMIN") navigate(ROUTES.ADMIN);
+                else navigate("/account");
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
               }}
               aria-label={isAuthenticated ? "Tài khoản" : "Đăng nhập"}
             >
@@ -289,24 +448,12 @@ const Header = () => {
 
       {isMobileMenuOpen && (
         <div className="mobile-menu-backdrop" onClick={handleMobileMenuToggle}>
-          <div
-            className="mobile-menu-panel"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
             <div className="panel-header">
               <h3 className="panel-title">MENU</h3>
-              <button
-                className="panel-close"
-                onClick={handleMobileMenuToggle}
-                aria-label="Đóng"
-              >
+              <button className="panel-close" onClick={handleMobileMenuToggle} aria-label="Đóng">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M18 6L6 18M6 6L18 18"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
+                  <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
@@ -315,9 +462,7 @@ const Header = () => {
               {menuData.map((item) => (
                 <div key={item.id} className="panel-nav-item">
                   <span
-                    className={`panel-nav-text ${
-                      item.highlight ? "text-highlight" : ""
-                    }`}
+                    className={`panel-nav-text ${item.highlight ? "text-highlight" : ""}`}
                     onClick={() => handlePushRouter(item.link)}
                   >
                     {item.name}
@@ -335,10 +480,7 @@ const Header = () => {
                   </button>
                 </div>
               ) : (
-                <button
-                  className="auth-button"
-                  onClick={() => handlePushRouter(ROUTES.LOGIN)}
-                >
+                <button className="auth-button" onClick={() => handlePushRouter(ROUTES.LOGIN)}>
                   Đăng nhập
                 </button>
               )}
@@ -351,5 +493,4 @@ const Header = () => {
     </>
   );
 };
-
 export default Header;

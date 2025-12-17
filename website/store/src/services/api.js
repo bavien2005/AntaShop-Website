@@ -1,6 +1,8 @@
 // src/services/api.js
+// import axios from "axios";
+// import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
 import axios from "axios";
-import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index";
+import { API_ENDPOINTS, STORAGE_KEYS } from "../constants/index"; 
 
 
 const TOKEN_KEY = STORAGE_KEYS?.TOKEN || "anta_token";
@@ -29,7 +31,12 @@ export const notificationService = {
     return res.data; // {success, message, requestId}
   }
 };
+<<<<<<< HEAD
 
+=======
+// orderService: call order-service endpoints
+// orderService: call order-service endpoints
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 export const orderService = {
   createOrder: async (payload) => {
     try {
@@ -140,6 +147,7 @@ export const orderService = {
       throw new Error(msg);
     }
   },
+
   cancelOrder: async (orderId) => {
     try {
       const res = await orderApi.post(`/api/orders/${encodeURIComponent(orderId)}/cancel`);
@@ -345,10 +353,7 @@ export const revenueService = {
   }
 };
 
-// Hàm helper gọi trực tiếp đến cart-service (nếu gateway có vấn đề)
-// =======
-// // direct cart-service fallback
-// >>>>>>> b075c3cb814577d00cb6b4f9f60454207d26063b
+
 const getCartDirectly = async (userId, sessionId) => {
   try {
     const params = new URLSearchParams();

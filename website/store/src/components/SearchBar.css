@@ -51,7 +51,10 @@
   border: none;
   background: transparent;
   font-size: 14px;
+<<<<<<< HEAD
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+=======
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   color: #0c0c0c;
   outline: none;
   transition: all 0.2s ease;
@@ -277,6 +280,7 @@
 .search-dropdown-results,
 .search-dropdown-results * {
   color: #111;
+<<<<<<< HEAD
 }
 
 /* ===== FIX: chữ trong input bị trắng/ẩn (bị CSS khác override) ===== */
@@ -308,3 +312,6 @@
 .search-bar-inline .search-input-wrapper-inline {
   background: #fff;
 }
+=======
+}
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71

@@ -4,9 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts';
 import { AdminSidebar, ProductManagement, ShippingManagement } from '../components';
 import adminService from '../services/adminService';
+import { useCart } from '../contexts';
 import ProductOverviewChart from '../pages/ProductOverviewChart';
+<<<<<<< HEAD
 import { useCart } from '../contexts';
 
+=======
+>>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 import './AdminPage.css';
 import DashboardStatsTabs from '../components/DashboardStatsTabs';
 
@@ -14,6 +18,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeSubTab, setActiveSubTab] = useState('my-products');
   const { logout, user, isAuthenticated, isAdmin, isLoading } = useAuth();
+
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -133,6 +138,7 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     logout();
+
     navigate('/login');
   };
 
@@ -155,8 +161,8 @@ export default function AdminPage() {
         return (
           <DashboardStatsTabs></DashboardStatsTabs>
 
-         
-          
+
+
         );
       case 'dashboard':
         return (
