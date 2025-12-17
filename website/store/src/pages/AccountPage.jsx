@@ -38,6 +38,18 @@ const pickOrderItemsArray = (o) => {
   if (Array.isArray(o.order_lines)) return o.order_lines;
   return [];
 };
+
+const toMoneyNumber = (v) => {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'string') {
+    const cleaned = v.replace(/[^\d.-]/g, ''); // bỏ , ₫ khoảng trắng...
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 const getOrderThumbnail = (order) => {
   if (!order) return 'https://via.placeholder.com/300';
 
@@ -59,6 +71,32 @@ const getOrderThumbnail = (order) => {
 
   return resolveImageUrl(fromItem) || 'https://via.placeholder.com/300';
 };
+const normalizeStatusKey = (status) => {
+  return String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_'); // "pending payment" -> "pending_payment"
+};
+
+// trả về bucket: all | processing | shipping | delivered | cancelled
+const statusToBucket = (status) => {
+  const s = normalizeStatusKey(status);
+
+  // backend enum
+  if (s === 'pending_payment' || s === 'paid' || s === 'confirmed') return 'processing';
+  if (s === 'shipped' || s === 'shipping') return 'shipping';
+  if (s === 'delivered') return 'delivered';
+  if (s === 'cancelled' || s === 'failed') return 'cancelled';
+
+  // fallback cho text tiếng Việt / text khác
+  if (s.includes('chờ') || s.includes('xử_lý') || s.includes('processing')) return 'processing';
+  if (s.includes('đang_giao') || s.includes('giao') || s.includes('ship')) return 'shipping';
+  if (s.includes('đã_giao') || s.includes('delivered')) return 'delivered';
+  if (s.includes('hủy') || s.includes('cancel') || s.includes('fail')) return 'cancelled';
+
+  // mặc định: coi như chờ xử lý để không bị "lọt" khỏi list
+  return 'processing';
+};
 
 const normalizeOrderLine = (it, fallbackImage = '') => {
   if (!it) return null;
@@ -71,7 +109,12 @@ const normalizeOrderLine = (it, fallbackImage = '') => {
   const unitPrice = Number(it.unitPrice ?? it.price ?? it.amount ?? it.unit_price ?? 0) || 0;
   const lineTotal = Number(it.lineTotal ?? it.line_total ?? (unitPrice * quantity)) || (unitPrice * quantity);
 
-  const productId = it.productId ?? it.product_id ?? it.product?.id ?? it.id ?? null;
+  const productId =
+    it.productId ??
+    it.product_id ??
+    it.product?.id ??
+    it.product?.productId ??
+    null; // ❌ bỏ it.id
   const variantId = it.variantId ?? it.variant_id ?? it.variant?.id ?? null;
 
   const name = it.name || it.productName || it.title || it.product?.name || '';
@@ -90,6 +133,52 @@ const normalizeOrderLine = (it, fallbackImage = '') => {
     lineTotal
   };
 };
+const pickStockNumber = (obj) => {
+  const n =
+    obj?.stockQuantity ??
+    obj?.stockQty ??
+    obj?.qtyInStock ??
+    obj?.stock ??
+    obj?.inventory ??
+    obj?.availableQuantity ??
+    null;
+
+  return n == null ? null : Number(n);
+};
+
+const isInStockBestEffort = (obj) => {
+  if (!obj) return false;
+
+  if (typeof obj.inStock === 'boolean' && obj.inStock === false) return false;
+  if (typeof obj.available === 'boolean' && obj.available === false) return false;
+
+  const stock = pickStockNumber(obj);
+  if (stock != null && Number.isFinite(stock)) return stock > 0;
+
+  return true; // không có field tồn kho -> cho qua
+};
+const toNumberOr0 = (v) => {
+  if (v == null) return 0;
+  if (typeof v === 'object') {
+    const x = v.fee ?? v.amount ?? v.cost ?? v.price ?? v.value ?? 0;
+    return toMoneyNumber(x);
+  }
+  return toMoneyNumber(v);
+};
+
+const pickShippingFee = (o) => toNumberOr0(
+  o?.shippingFee ??
+  o?.shipping_fee ??
+  o?.shipping_cost ??     // ✅ bạn đang gửi key này ở checkout
+  o?.shippingCost ??
+  o?.shippingAmount ??
+  o?.shippingPrice ??
+  o?.deliveryFee ??
+  o?.delivery_fee ??
+  o?.shipping ??          // có thể là number hoặc object
+  o?.delivery ??
+  0
+);
 
 const normalizeOrderDetail = (detail, fallbackSummary = null) => {
   const itemsRaw = pickOrderItemsArray(detail);
@@ -97,6 +186,10 @@ const normalizeOrderDetail = (detail, fallbackSummary = null) => {
   const lines = itemsRaw.map(it => normalizeOrderLine(it, fallbackImg)).filter(Boolean);
 
   const total = Number(detail?.total ?? detail?.totalAmount ?? detail?.amount ?? 0) || 0;
+
+  // ✅ lấy shipping từ detail, nếu không có thì fallback từ order summary (list)
+  const shippingFee = pickShippingFee(detail) || pickShippingFee(fallbackSummary);
+
   const createdAt = detail?.date || detail?.createdAt || detail?.created_at || null;
   const status = detail?.status || detail?.state || detail?.statusText || '';
 
@@ -104,10 +197,12 @@ const normalizeOrderDetail = (detail, fallbackSummary = null) => {
     ...detail,
     status,
     total,
+    shippingFee,
     createdAt,
     _lines: lines
   };
 };
+
 
 // (best-effort) fill missing name/image from product-service
 const enrichLinesFromProductService = async (lines = []) => {
@@ -129,6 +224,9 @@ const enrichLinesFromProductService = async (lines = []) => {
   }));
   return out;
 };
+
+const isDelivered = (st) => statusToBucket(st) === 'delivered';
+
 export default function AccountPage() {
   const navigate = useNavigate();
   const { section } = useParams();
@@ -378,29 +476,118 @@ export default function AccountPage() {
   };
 
   const handleReorder = async (order) => {
+    setLoading(true);
     try {
-      const list = Array.isArray(order.products) && order.products.length ? order.products
-        : Array.isArray(order.items) && order.items.length ? order.items
-          : [];
-      if (list.length > 0) {
-        list.forEach(product => {
-          addToCart({
-            id: product.id ?? product.productId ?? product.product_id,
-            name: product.name ?? product.productName ?? '',
-            price: product.price ?? product.unitPrice ?? 0,
-            image: product.image ?? product.thumbnail ?? '',
-            quantity: product.quantity ?? product.qty ?? 1
-          });
-        });
-        alert('Đã thêm sản phẩm vào giỏ hàng!');
-        navigate('/cart');
-      } else {
-        alert('Không thể tải thông tin sản phẩm');
+      // 1) ưu tiên lấy detail để có variant/size/color/qty chuẩn
+      let detail = null;
+      try {
+        detail = await getOrder(order.id);
+      } catch {
+        detail = null;
       }
+
+      const normalized = detail
+        ? normalizeOrderDetail(detail, order)
+        : normalizeOrderDetail(order, order);
+
+      const lines = Array.isArray(normalized?._lines) ? normalized._lines : [];
+
+      if (!lines.length) {
+        alert('Không thể mua lại vì đơn hàng không có danh sách sản phẩm.');
+        return;
+      }
+
+      const added = [];
+      const failed = [];
+
+      // 2) kiểm tra tồn tại + tồn kho (best-effort)
+      for (const l of lines) {
+        const productId = l?.productId ?? l?.raw?.productId ?? l?.raw?.product_id;
+        if (!productId) {
+          failed.push(l?.name || 'Sản phẩm không xác định');
+          continue;
+        }
+
+        try {
+          // check product tồn tại
+          const p = await productService.getProduct(productId);
+          if (!p) {
+            failed.push(l?.name || `Sản phẩm #${productId}`);
+            continue;
+          }
+
+          // check tồn kho product
+          if (!isInStockBestEffort(p)) {
+            failed.push(l?.name || p?.name || `Sản phẩm #${productId}`);
+            continue;
+          }
+
+          // check variant nếu có (best-effort)
+          let variantOk = true;
+          if (l?.variantId != null) {
+            const variants = await productService.getVariants(productId); // bạn đã có function này
+            if (Array.isArray(variants) && variants.length) {
+              const v = variants.find(x => (x?.id ?? x?.variantId) == l.variantId);
+              if (!v) variantOk = false;
+              else if (!isInStockBestEffort(v)) variantOk = false;
+            }
+            // nếu endpoint variants fail -> getVariants trả [] -> coi như ok (không chặn)
+          }
+
+          if (!variantOk) {
+            failed.push(l?.name || p?.name || `Sản phẩm #${productId}`);
+            continue;
+          }
+
+          // 3) add to cart
+          const unitPrice = Number(l?.unitPrice ?? p?.price ?? 0) || 0;
+          const qty = Number(l?.quantity ?? 1) || 1;
+
+          await addToCart({
+            // giữ cả id và productId để tương thích nhiều context khác nhau
+            id: productId,
+            productId,
+            variantId: l?.variantId ?? null,
+            name: l?.name || p?.name || `Sản phẩm #${productId}`,
+            image: l?.image || resolveImageUrl(p?.thumbnail || p?.image || p?.images),
+            unitPrice,
+            price: unitPrice,
+            quantity: qty,
+            size: l?.size ?? null,
+            color: l?.color ?? null,
+          });
+
+          added.push(l?.name || p?.name || `Sản phẩm #${productId}`);
+        } catch {
+          failed.push(l?.name || `Sản phẩm #${productId}`);
+        }
+      }
+
+      // 4) thông báo + điều hướng
+      if (added.length) {
+        if (failed.length) {
+          alert(
+            `Đã thêm ${added.length} sản phẩm vào giỏ hàng.\n\n` +
+            `Một số sản phẩm hiện chưa có hàng hoặc không còn tồn tại:\n- ${failed.join('\n- ')}`
+          );
+        } else {
+          alert('Đã thêm sản phẩm vào giỏ hàng!');
+        }
+        navigate('/cart'); // ✅ tự điều hướng sang giỏ hàng
+        return;
+      }
+
+      // không thêm được cái nào
+      alert(
+        `Sản phẩm trong đơn hiện chưa có hàng hoặc không còn tồn tại:\n- ${failed.join('\n- ')}`
+      );
     } catch (error) {
-      alert('Có lỗi xảy ra: ' + error.message);
+      alert('Có lỗi xảy ra khi mua lại: ' + (error?.message || String(error)));
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const handleOpenReview = (order) => {
     setReviewOrder(order);
@@ -461,29 +648,14 @@ export default function AccountPage() {
   };
 
 
- const getStatusClass = (status) => {
-  const s = String(status || '').trim().toLowerCase();
-
-  // ✅ bạn muốn xanh hết như DELIVERED -> map các trạng thái "lạ" về delivered
-  if (
-    s.includes('delivered') ||
-    s.includes('đã giao') ||
-    s.includes('pending_payment') ||
-    s.includes('pending payment') ||
-    s.includes('chờ thanh toán')
-  ) return 'delivered';
-
-  if (s.includes('shipping') || s.includes('shipped') || s.includes('đang giao')) return 'shipping';
-  if (s.includes('processing') || s.includes('confirmed') || s.includes('đang xử lý') || s.includes('chờ xử lý')) return 'processing';
-  if (s.includes('cancel') || s.includes('đã hủy')) return 'cancelled';
-
-  // ✅ mặc định cũng xanh
-  return 'delivered';
-};
-  const getFilteredOrders = () => {
-    return getOrdersByStatus(orderFilter);
+  const getStatusClass = (status) => {
+    return statusToBucket(status); // processing | shipping | delivered | cancelled
   };
-
+  const getFilteredOrders = () => {
+    const list = Array.isArray(orders) ? orders : [];
+    if (orderFilter === 'all') return list;
+    return list.filter(o => statusToBucket(o?.status) === orderFilter);
+  };
   const getTrackingSteps = (order) => {
     const steps = [
       { label: 'Đã đặt hàng', completed: true },
@@ -549,8 +721,11 @@ export default function AccountPage() {
         {orders.length > 0 ? (
           <div className="recent-orders">
             {orders.slice(0, 2).map((order) => (
-              <div key={order.id} cla
-                ssName="recent-order-item" onClick={() => handleViewOrderDetail(order)}>
+              <div
+                key={order.id}
+                className="recent-order-item"
+                onClick={() => handleViewOrderDetail(order)}
+              >
                 <div className="order-thumbnail">
                   <img
                     src={getOrderThumbnail(order)}
@@ -626,7 +801,7 @@ export default function AccountPage() {
                 </div>
                 <div className="order-card-footer">
                   <button className="order-action-btn secondary" onClick={() => handleViewOrderDetail(order)}>Xem chi tiết</button>
-                  {(order.status === 'Đã giao' || order.status === 'DELIVERED') && (
+                  {isDelivered(order.status) && (
                     <>
                       <button className="order-action-btn secondary" onClick={() => handleReorder(order)}>Mua lại</button>
                       <button className="order-action-btn primary" onClick={() => handleOpenReview(order)}>Đánh giá</button>
@@ -1083,11 +1258,22 @@ export default function AccountPage() {
               </div>
 
               <div className="order-detail-section">
-                <h4>Tổng cộng</h4>
+                <div className="order-total-header-row">
+                  <h4 style={{ margin: 0 }}>Tổng cộng</h4>
+
+                  <div className="order-shipping-inline">
+                    Phí Vận chuyển: &nbsp;
+                    <strong>
+                      {toMoneyNumber(selectedOrder.shippingFee ?? 0).toLocaleString()}₫
+                    </strong>
+                  </div>
+                </div>
+
                 <div className="order-total-amount">
                   {(Number(selectedOrder.total ?? selectedOrder.totalAmount ?? 0) || 0).toLocaleString()}₫
                 </div>
               </div>
+
             </div>
           </div>
         </div>

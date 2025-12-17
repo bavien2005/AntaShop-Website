@@ -204,7 +204,7 @@
 }
 
 .action-button:hover {
-  background: white;
+  background: rgb(212, 48, 48);
   transform: scale(1.1);
 }
 
@@ -308,6 +308,7 @@
 .view-all-section {
   text-align: center;
   margin-top: 2rem;
+  color: #0a0a0a;
 }
 
 .view-all-button {
@@ -418,4 +419,15 @@
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
   }
+}
+.category-tabs {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-tabs::-webkit-scrollbar {
+  height: 6px;
 }

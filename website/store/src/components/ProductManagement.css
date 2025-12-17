@@ -149,10 +149,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+  background: linear-gradient(135deg, #3fc4c4 0%, #fff 100%);
   padding: 10px 16px;
   border-radius: 12px;
   border: 1px solid var(--card-border);
+  color: #111;
+  font-size: 20px;
 }
 
 .result-count {
@@ -309,8 +311,8 @@
 }
 
 .product-brand {
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 17px;
+  color: #4b4a4a
 }
 
 /* ============================================
@@ -439,7 +441,7 @@
 
 .variant-meta {
   font-size: 12px;
-  color: var(--text-muted);
+  color: #111;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -452,6 +454,7 @@
   font-size: 13px;
   flex-shrink: 0;
   white-space: nowrap;
+  color: #111;
 }
 
 .variant-price-text {
@@ -460,7 +463,7 @@
 }
 
 .variant-stock-text {
-  color: var(--text-muted);
+ color: #111;
 }
 
 /* ============================================
@@ -563,4 +566,241 @@
   font-size: 16px;
   color: var(--text-muted);
   font-weight: 600;
+}
+
+.status-indicator.out {
+  background: linear-gradient(135deg, rgba(107,107,107,0.12), rgba(107,107,107,0.06));
+  color: #4B5563;
+  border: 1px solid rgba(107,107,107,0.12);
+}
+/* ===========================
+   TABLE HARD RESET (FIX lệch cột do CSS khác override tr/td)
+   =========================== */
+.data-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.data-table thead tr,
+.data-table tbody tr {
+  display: table-row !important;
+}
+
+.data-table th,
+.data-table td {
+  display: table-cell !important;
+  vertical-align: middle;
+}
+
+/* Header căn giữa giống body (trừ cột sản phẩm) */
+.data-table th { text-align: center; }
+.data-table th.col-product { text-align: left; }
+
+/* Nếu bạn có CSS nào đó gán .table-row display:flex thì ép lại */
+.data-table .table-row,
+.data-table .parent-row,
+.data-table .variant-row {
+  display: table-row !important;
+}
+/* ===========================
+   VARIANT ROW (8 cột) styling
+   =========================== */
+.variant-row .product-cell {
+  padding-left: 64px; /* thụt vào dưới nút expand + hình product cha */
+}
+
+.variant-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.variant-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.variant-sku {
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variant-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* ===========================
+   VARIANTS PANEL (sub-row)
+   =========================== */
+.variant-subrow td {
+  padding: 0 !important;
+  border-bottom: 1px dashed rgba(200,200,200,0.35);
+}
+
+.variant-subcell {
+  padding: 0 !important;
+}
+
+.variant-panel {
+  margin: 10px 14px 16px;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 100%);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.variant-panel-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 10px;
+}
+
+.variant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.variant-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.06);
+  color: #111;
+}
+
+.variant-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.variant-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #e6e6e6;
+  flex-shrink: 0;
+}
+
+.variant-info {
+  min-width: 0;
+}
+
+.variant-sku {
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variant-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variant-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.variant-kv {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  text-align: right;
+}
+
+.variant-kv .k {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.variant-kv .v {
+  font-size: 12px;
+  font-weight: 800;
+  color: #111;
+}
+
+/* responsive */
+@media (max-width: 1100px) {
+  .variant-grid { grid-template-columns: 1fr; }
+}
+/* ===== Variant panel typography (override) ===== */
+
+/* ===== Variant panel typography (match kiểu chữ "Giày nam") ===== */
+
+/* Giữ màu chữ đen vừa phải (không ép tất cả bằng * để khỏi phá màu badge) */
+.variant-card,
+.variant-info,
+.variant-kv {
+  color: #111;
+}
+
+/* Tiêu đề VARIANTS */
+.variant-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111;
+}
+
+/* SKU (tên variant) - bớt đậm */
+.variant-sku {
+  font-size: 15px;
+  font-weight: 700; /* giống kiểu chữ bảng, không 900 */
+  color: #111;
+}
+
+/* Meta: Size / Color / ... - giống kiểu "Giày nam" (đen, nhẹ hơn) */
+.variant-meta {
+  font-size: 15px;
+  font-weight: 500;
+  color: #111;
+}
+
+/* Nhãn "Giá", "SL" */
+.variant-kv .k {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+}
+
+/* Giá trị (giá tiền, số lượng) */
+.variant-kv .v {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+}
+
+/* Badge trạng thái: chỉ chỉnh nhẹ font-weight, giữ style nền/màu theo class active/low-stock/out */
+.variant-right .status-indicator {
+  font-weight: 800;
 }

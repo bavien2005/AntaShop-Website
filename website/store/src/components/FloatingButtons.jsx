@@ -26,7 +26,7 @@ const FloatingButtons = () => {
   };
 
   const handleMessengerClick = () => {
-    window.open('https://m.me/your-facebook-page', '_blank');
+    window.open('https://www.facebook.com/nguen.vien.906', '_blank');
   };
 
   const handleZaloClick = () => {

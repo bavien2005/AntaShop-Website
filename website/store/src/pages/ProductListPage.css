@@ -143,7 +143,7 @@
 
 .filter-option span {
   font-size: 14px;
-  color: var(--color-text);
+  color: #111;
   cursor: pointer;
   user-select: none;
   font-weight: var(--font-weight-medium);

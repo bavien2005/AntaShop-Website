@@ -1,90 +1,132 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react"; import { useNavigate } from "react-router-dom";
 import { Layout, HeroBanner, DiscountCodes, ProductSections } from "../components";
 import { HomeSlider, ProductGrid, BrandStrip, Lookbook, BlogTeasers } from "../components/home";
 import "./HomePage.css";
-
+import { productService } from "../services/api";
 export default function HomePage() {
   const navigate = useNavigate();
+  // ================== DATA FROM API ==================
+  const [allProducts, setAllProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
-  const featuredProducts = [
-    {
-      id: 1,
-      name: "Giày Chạy Thể Thao Nam ANTA Running Pro",
-      price: "1.259.100₫",
-      originalPrice: "1.399.000₫",
-      discount: "10%",
-      image: "https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "HOT"
-    },
-    {
-      id: 2,
-      name: "Giày Chạy Thể Thao Nữ ANTA Speed",
-      price: "1.599.000₫",
-      originalPrice: "1.999.000₫",
-      discount: "20%",
-      image: "https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "SALE"
-    },
-    {
-      id: 3,
-      name: "Giày Thể Thao Nam ANTA Lifestyle",
-      price: "1.899.000₫",
-      originalPrice: "2.199.000₫",
-      discount: "14%",
-      image: "https://images.pexels.com/photos/2529157/pexels-photo-2529157.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "NEW"
-    },
-    {
-      id: 4,
-      name: "Giày Bóng Rổ ANTA Basketball Elite",
-      price: "2.199.000₫",
-      originalPrice: "2.499.000₫",
-      discount: "12%",
-      image: "https://images.pexels.com/photos/1464625/pexels-photo-1464625.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "HOT"
+  // helper: parse tiền có thể là "1.259.100₫" hoặc number
+  const toNumberPrice = (v) => {
+    if (v == null) return 0;
+    if (typeof v === "number") return v;
+    const s = String(v).replace(/[^\d]/g, "");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // helper: format data cho ProductGrid
+  const mapToGridItem = (p) => {
+    const id = p?.id ?? p?.productId ?? p?.product_id ?? p?._id ?? p?.code ?? p?.sku;
+
+    const priceNum = toNumberPrice(p.price ?? p.unitPrice ?? p.salePrice ?? p.minPrice ?? p.amount);
+    const originalNum = toNumberPrice(p.originalPrice ?? p.listPrice ?? p.compareAtPrice ?? p.msrp);
+
+    const image =
+      p.image ||
+      p.imageUrl ||
+      p.thumbnail ||
+      p.thumbnailUrl ||
+      (Array.isArray(p.images) ? p.images[0] : null) ||
+      "https://via.placeholder.com/600x600?text=No+Image";
+
+    let discount = null;
+    if (originalNum > 0 && priceNum > 0 && originalNum > priceNum) {
+      discount = `${Math.round(((originalNum - priceNum) / originalNum) * 100)}%`;
     }
-  ];
 
-  const newArrivals = [
-    {
-      id: 5,
-      name: "Áo Thể Thao Nam ANTA Performance",
-      price: "599.000₫",
-      originalPrice: null,
-      discount: null,
-      image: "https://images.pexels.com/photos/1232594/pexels-photo-1232594.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "NEW"
-    },
-    {
-      id: 6,
-      name: "Quần Short Thể Thao ANTA Training",
-      price: "499.000₫",
-      originalPrice: null,
-      discount: null,
-      image: "https://images.pexels.com/photos/1656684/pexels-photo-1656684.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "NEW"
-    },
-    {
-      id: 7,
-      name: "Giày Chạy ANTA Ultra Light",
-      price: "1.799.000₫",
-      originalPrice: "2.099.000₫",
-      discount: "14%",
-      image: "https://images.pexels.com/photos/1619654/pexels-photo-1619654.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "NEW"
-    },
-    {
-      id: 8,
-      name: "Áo Khoác Thể Thao ANTA Windbreaker",
-      price: "1.359.000₫",
-      originalPrice: "1.699.000₫",
-      discount: "20%",
-      image: "https://images.pexels.com/photos/1183266/pexels-photo-1183266.jpeg?auto=compress&cs=tinysrgb&w=600",
-      badge: "SALE"
+    const badge = p.badge || (p.isNew ? "NEW" : discount ? "SALE" : "HOT");
+
+    return {
+      id,
+      name: p.name ?? p.productName ?? "Sản phẩm",
+      price: priceNum ? `${priceNum.toLocaleString()}₫` : "0₫",
+      originalPrice: originalNum ? `${originalNum.toLocaleString()}₫` : null,
+      discount,
+      image,
+      badge,
+      raw: p,
+    };
+  };
+
+
+  // helper: random N sản phẩm (không trùng)
+  const pickRandom = (arr, n) => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
     }
-  ];
+    return copy.slice(0, n);
+  };
 
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchProducts = async () => {
+      try {
+        setLoadingProducts(true);
+
+        // ====== GỌI API ======
+        // Bạn cần đổi đúng hàm theo productService của bạn.
+        // Các tên thường gặp: getAllProducts(), getProducts(), listProducts(), searchProducts()
+        let resp = null;
+
+        // gọi đúng 1 hàm và luôn await
+        if (productService?.getAllProducts) {
+          resp = await productService.getAllProducts();
+        } else if (productService?.getProducts) {
+          resp = await productService.getProducts();
+        } else if (productService?.listProducts) {
+          resp = await productService.listProducts();
+        } else if (productService?.searchProducts) {
+          resp = await productService.searchProducts({ page: 0, size: 100 });
+        } else {
+          throw new Error("productService không có hàm lấy danh sách sản phẩm");
+        }
+
+        // unwrap + normalize nhiều kiểu response
+        const raw = resp?.data ?? resp;
+
+        const list =
+          (raw?.success === true && Array.isArray(raw?.data)) ? raw.data :
+            Array.isArray(raw) ? raw :
+              Array.isArray(raw?.items) ? raw.items :
+                Array.isArray(raw?.content) ? raw.content :
+                  Array.isArray(raw?.products) ? raw.products :
+                    Array.isArray(raw?.data) ? raw.data :
+                      [];
+
+        setAllProducts(Array.isArray(list) ? list : []);
+
+      } catch (e) {
+        console.error("[HomePage] fetchProducts error:", e);
+        if (mounted) setAllProducts([]);
+      } finally {
+        if (mounted) setLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+    return () => { mounted = false; };
+  }, []);
+
+  const featuredProducts = useMemo(() => {
+    const mapped = (Array.isArray(allProducts) ? allProducts : [])
+      .map(mapToGridItem)
+      .filter(x => x?.id != null);
+    return pickRandom(mapped, 4);
+  }, [allProducts]);
+
+  const newArrivals = useMemo(() => {
+    const mapped = (Array.isArray(allProducts) ? allProducts : [])
+      .map(mapToGridItem)
+      .filter(x => x?.id != null);
+    return pickRandom(mapped, 4);
+  }, [allProducts]);
   const sportCategories = [
     {
       id: 1,
@@ -134,7 +176,6 @@ export default function HomePage() {
       link: "/women"
     }
   ];
-
   return (
     <Layout>
       <div className="homepage">
@@ -150,14 +191,14 @@ export default function HomePage() {
             </div>
             <div className="sport-categories-grid">
               {sportCategories.map((category) => (
-                <div 
-                  key={category.id} 
+                <div
+                  key={category.id}
                   className="sport-category-card"
                   onClick={() => navigate(category.link)}
                 >
                   <div className="sport-category-image-wrapper">
-                    <img 
-                      src={category.image} 
+                    <img
+                      src={category.image}
                       alt={category.title}
                       className="sport-category-image"
                     />
@@ -180,8 +221,11 @@ export default function HomePage() {
               <h2 className="section-title-large">SẢN PHẨM NỔI BẬT</h2>
               <p className="section-subtitle">Những sản phẩm được yêu thích nhất</p>
             </div>
-            <ProductGrid title="" products={featuredProducts} />
-          </div>
+            {loadingProducts ? (
+              <div style={{ padding: "12px 0" }}>Đang tải sản phẩm...</div>
+            ) : (
+              <ProductGrid title="" products={featuredProducts} />
+            )}          </div>
         </section>
 
         <section className="promo-banner-section">
@@ -191,7 +235,7 @@ export default function HomePage() {
                 <span className="promo-banner-badge">🔥 MEGA SALE</span>
                 <h2 className="promo-banner-title">GIẢM GIÁ LÊN ĐẾN 50%</h2>
                 <p className="promo-banner-description">
-                  Cơ hội vàng sở hữu giày thể thao chính hãng với giá tốt nhất. 
+                  Cơ hội vàng sở hữu giày thể thao chính hãng với giá tốt nhất.
                   Khuyến mãi có giới hạn, nhanh tay đặt hàng ngay!
                 </p>
                 <button className="promo-banner-button" onClick={() => navigate('/products')}>
@@ -199,8 +243,8 @@ export default function HomePage() {
                 </button>
               </div>
               <div className="promo-banner-image-wrapper">
-                <img 
-                  src="https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=800" 
+                <img
+                  src="https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=800"
                   alt="Mega Sale"
                   className="promo-banner-image"
                 />
@@ -213,14 +257,14 @@ export default function HomePage() {
           <div className="container">
             <div className="collections-showcase-grid">
               {collections.map((collection) => (
-                <div 
-                  key={collection.id} 
+                <div
+                  key={collection.id}
                   className="collection-showcase-card"
                   onClick={() => navigate(collection.link)}
                 >
                   <div className="collection-showcase-image-wrapper">
-                    <img 
-                      src={collection.image} 
+                    <img
+                      src={collection.image}
                       alt={collection.title}
                       className="collection-showcase-image"
                     />
@@ -246,16 +290,19 @@ export default function HomePage() {
               <h2 className="section-title-large">HÀNG MỚI VỀ</h2>
               <p className="section-subtitle">Cập nhật xu hướng thể thao mới nhất</p>
             </div>
-            <ProductGrid title="" products={newArrivals} />
-          </div>
+            {loadingProducts ? (
+              <div style={{ padding: "12px 0" }}>Đang tải sản phẩm...</div>
+            ) : (
+              <ProductGrid title="" products={newArrivals} />
+            )}          </div>
         </section>
 
         <section className="brand-story-section">
           <div className="container">
             <div className="brand-story-grid">
               <div className="brand-story-image-wrapper">
-                <img 
-                  src="https://images.pexels.com/photos/2526878/pexels-photo-2526878.jpeg?auto=compress&cs=tinysrgb&w=800" 
+                <img
+                  src="https://images.pexels.com/photos/2526878/pexels-photo-2526878.jpeg?auto=compress&cs=tinysrgb&w=800"
                   alt="ANTA Brand Story"
                   className="brand-story-image"
                 />
@@ -264,8 +311,8 @@ export default function HomePage() {
                 <span className="brand-story-tag">VỀ ANTA</span>
                 <h2 className="brand-story-title">KEEP MOVING</h2>
                 <p className="brand-story-description">
-                  ANTA - Thương hiệu thể thao hàng đầu Trung Quốc với hơn 30 năm kinh nghiệm. 
-                  Chúng tôi cam kết mang đến những sản phẩm chất lượng cao, kết hợp công nghệ 
+                  ANTA - Thương hiệu thể thao hàng đầu Trung Quốc với hơn 30 năm kinh nghiệm.
+                  Chúng tôi cam kết mang đến những sản phẩm chất lượng cao, kết hợp công nghệ
                   tiên tiến và thiết kế thời trang, giúp bạn tự tin chinh phục mọi thử thách.
                 </p>
                 <ul className="brand-story-features">
@@ -311,9 +358,9 @@ export default function HomePage() {
                   Nhận thông tin về sản phẩm mới, ưu đãi đặc biệt và các chương trình khuyến mãi hấp dẫn
                 </p>
                 <form className="newsletter-signup-form">
-                  <input 
-                    type="email" 
-                    placeholder="Nhập địa chỉ email của bạn" 
+                  <input
+                    type="email"
+                    placeholder="Nhập địa chỉ email của bạn"
                     className="newsletter-signup-input"
                   />
                   <button type="submit" className="newsletter-signup-button">ĐĂNG KÝ NGAY</button>

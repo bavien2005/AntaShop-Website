@@ -23,32 +23,24 @@ orderApi.interceptors.request.use((cfg) => {
   }
   return cfg;
 })
+export const notificationService = {
+  sendOrderSuccess: async (payload) => {
+    const res = await api.post('/api/notifications/order-success', payload);
+    return res.data; // {success, message, requestId}
+  }
+};
 
-// orderService: call order-service endpoints
-// orderService: call order-service endpoints
 export const orderService = {
   createOrder: async (payload) => {
-    // payload must follow backend CreateOrderRequest shape:
-    // { userId, items: [{ productId, variantId, quantity, note? }], shippingAddress?, paymentMethod? }
     try {
       const res = await orderApi.post("/api/orders/create", payload);
-      // CreateOrderResponse { id (numeric)?, orderId (string)?, status, payUrl, total, ... }
       return res.data;
     } catch (err) {
       const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Order API error";
-      // rethrow so frontend can catch and show message
       throw new Error(msg);
     }
   },
 
-  /**
-   * Robust getOrder:
-   * 1) try GET /api/orders/{orderId} (works if backend expects numeric id or accepts string)
-   * 2) if fails AND orderId is a string (contains non-digits), try GET /api/orders/by-order-number/{orderNumber}
-   * 3) if all fail, throw error
-   *
-   * This prevents 400 when the frontend has an orderNumber like "6-xxxx-uuid".
-   */
   getOrder: async (orderId) => {
     const tryPaths = [
       () => orderApi.get(`/api/orders/${encodeURIComponent(orderId)}`), // primary
@@ -130,7 +122,7 @@ export const orderService = {
       throw new Error(msg);
     }
   },
- getOrders: async (params = {}) => {
+  getOrders: async (params = {}) => {
     try {
       const res = await orderApi.get('/api/orders', { params });
       const data = res.data;
@@ -233,8 +225,13 @@ export const productService = {
     const res = await api.get(url);
     return res.data;
   },
-  searchProducts: async (q) => {
-    const res = await api.get(API_ENDPOINTS.PRODUCTS.SEARCH, { params: { q } });
+  searchProducts: async (q, params = {}) => {
+    const res = await api.get("/api/product/search", { params: { q, ...params } });
+    return res.data;
+  },
+  getAllProducts: async (params = {}) => {
+    // gọi thẳng product-service (giống admin)
+    const res = await productApi.get("/api/product/all", { params });
     return res.data;
   },
 

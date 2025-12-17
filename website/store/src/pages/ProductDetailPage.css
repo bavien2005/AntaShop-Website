@@ -650,6 +650,7 @@
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -930,7 +931,7 @@
   .related-grid {
     grid-template-columns: repeat(3, 1fr);
   }
-  
+
   .size-options {
     grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
   }
@@ -1176,4 +1177,65 @@
   .related-price span {
     font-size: 16px;
   }
+}
+
+.pdp-detail-block {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.pdp-detail-title {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #070707;
+}
+
+.pdp-detail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.pdp-detail-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.pdp-detail-list .dot {
+  min-width: 14px;
+  opacity: 0.75;
+  color: #070707;
+  font-size: 17px;
+}
+
+.pdp-detail-list .k {
+  min-width: 120px;
+  font-weight: 800;
+  color: #070707;
+  font-size: 17px;
+}
+
+.pdp-detail-list .v {
+  flex: 1;
+  opacity: 0.95;
+  color: #070707;
+  font-size: 17px;
+}
+
+.pdp-detail-note {
+  margin-top: 10px;
+  font-size: 17px;
+  opacity: 0.8;
+  line-height: 1.5;
+  color: #070707;
 }

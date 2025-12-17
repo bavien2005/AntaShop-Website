@@ -16,7 +16,6 @@ const ProductSections = () => {
 
   const [favorites, setFavorites] = useState(new Set());
   const [isTransitioning, setIsTransitioning] = useState(false);
-
   // tab states
   const [activeGenderShoes, setActiveGenderShoes] = useState("nam");
   const [activeSportswearTab, setActiveSportswearTab] = useState("ao-nam");
@@ -35,12 +34,12 @@ const ProductSections = () => {
         const list = Array.isArray(res)
           ? res
           : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res?.data?.content)
-          ? res.data.content
-          : res?.success && Array.isArray(res?.data)
-          ? res.data
-          : [];
+            ? res.data
+            : Array.isArray(res?.data?.content)
+              ? res.data.content
+              : res?.success && Array.isArray(res?.data)
+                ? res.data
+                : [];
         if (mounted) setAllProducts(list);
       } catch (err) {
         console.error("Load homepage products error:", err);
@@ -70,6 +69,11 @@ const ProductSections = () => {
     const vs = Array.isArray(p?.variants) ? p.variants : [];
     const nums = vs.map((v) => Number(v?.price || 0)).filter((n) => n > 0);
     return nums.length ? Math.min(...nums) : 0;
+  };
+
+  const isAccessory = (p) => {
+    const txt = `${p?.name || ""} ${p?.category || ""}`.toLowerCase();
+    return /(phụ kiện|phu kien|accessor|túi|tui|balo|ba lô|backpack|bag|purse|wallet|ví|mũ|mu|cap|hat|găng|glove|vớ|tất|sock|khăn|scarf)/.test(txt);
   };
 
   const isFemale = (p) => {
@@ -105,7 +109,7 @@ const ProductSections = () => {
   });
 
   // -------------------- GROUPING --------------------
-  const { shoesMen, shoesWomen, topsMen, topsWomen, bottomsMen, bottomsWomen } =
+  const { shoesMen, shoesWomen, topsMen, topsWomen, bottomsMen, bottomsWomen, accessories } =
     useMemo(() => {
       const shoesMen = [];
       const shoesWomen = [];
@@ -113,8 +117,15 @@ const ProductSections = () => {
       const topsWomen = [];
       const bottomsMen = [];
       const bottomsWomen = [];
+      const accessories = [];
 
       allProducts.forEach((p) => {
+        // ưu tiên phụ kiện trước để túi/balo không rơi vào áo nam
+        if (isAccessory(p)) {
+          accessories.push(toCard(p));
+          return;
+        }
+
         if (isShoe(p)) {
           (isFemale(p) ? shoesWomen : shoesMen).push(toCard(p));
         } else if (isTop(p)) {
@@ -124,11 +135,12 @@ const ProductSections = () => {
         }
       });
 
-      // nếu không phân loại được thì rơi vào nhóm “nam” để vẫn hiển thị
-      const rest = allProducts.filter((p) => !isShoe(p) && !isTop(p) && !isBottom(p));
-      rest.forEach((p) => topsMen.push(toCard(p)));
+      // sản phẩm không phân loại được -> cho vào phụ kiện (hoặc đổi theo ý bạn)
+      const rest = allProducts.filter(
+        (p) => !isAccessory(p) && !isShoe(p) && !isTop(p) && !isBottom(p)
+      );
+      rest.forEach((p) => accessories.push(toCard(p)));
 
-      // sort nhẹ theo id desc cho đẹp
       const byIdDesc = (a, b) => (b.id ?? 0) - (a.id ?? 0);
       shoesMen.sort(byIdDesc);
       shoesWomen.sort(byIdDesc);
@@ -136,9 +148,11 @@ const ProductSections = () => {
       topsWomen.sort(byIdDesc);
       bottomsMen.sort(byIdDesc);
       bottomsWomen.sort(byIdDesc);
+      accessories.sort(byIdDesc);
 
-      return { shoesMen, shoesWomen, topsMen, topsWomen, bottomsMen, bottomsWomen };
+      return { shoesMen, shoesWomen, topsMen, topsWomen, bottomsMen, bottomsWomen, accessories };
     }, [allProducts]);
+
 
   // -------------------- UI ACTIONS --------------------
   const handleSportswearTabChange = (tab) => {
@@ -190,9 +204,8 @@ const ProductSections = () => {
         <img src={card.image} alt={card.name} className="product-image" />
         <div className="product-actions">
           <button
-            className={`action-button heart-button ${
-              favorites.has(card.id) ? "active" : ""
-            }`}
+            className={`action-button heart-button ${favorites.has(card.id) ? "active" : ""
+              }`}
             onClick={(e) => toggleFavorite(e, card.id)}
             title={favorites.has(card.id) ? "Bỏ yêu thích" : "Thêm vào yêu thích"}
           >
@@ -241,6 +254,7 @@ const ProductSections = () => {
     "ao-nu": topsWomen,
     "quan-nam": bottomsMen,
     "quan-nu": bottomsWomen,
+    "phu-kien": accessories,
   };
 
   return (
@@ -310,6 +324,12 @@ const ProductSections = () => {
             onClick={() => handleSportswearTabChange("quan-nu")}
           >
             Quần nữ
+          </button>
+          <button
+            className={`tab-button ${activeSportswearTab === "phu-kien" ? "active" : ""}`}
+            onClick={() => handleSportswearTabChange("phu-kien")}
+          >
+            Phụ kiện
           </button>
         </div>
 

@@ -1,105 +1,136 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { productService } from '../services';
-import './SearchBar.css';
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+// ưu tiên import trực tiếp để chắc chắn đúng service
+import { productService } from "../services/api";
+import "./SearchBar.css";
+
+const MIN_QUERY_LEN = 1;     // bạn muốn g/gi/gia => để 1
+const DEBOUNCE_MS = 250;
+
+const normalizeSearchItem = (p) => {
+  const image =
+    p?.thumbnail ||
+    (Array.isArray(p?.images) ? p.images[0] : null) ||
+    p?.image ||
+    "https://via.placeholder.com/80x80?text=No+Image";
+
+  const price = Number(p?.price) || 0;
+
+  return {
+    id: p?.id,
+    name: p?.name || "",
+    price,
+    image,
+    raw: p,
+  };
+};
+const pickList = (data) => {
+  if (Array.isArray(data)) return data;
+
+  // Spring Page
+  if (data && Array.isArray(data.content)) return data.content;
+
+  // wrappers hay gặp
+  if (data && Array.isArray(data.data)) return data.data;
+  if (data && Array.isArray(data.items)) return data.items;
+  if (data && Array.isArray(data.products)) return data.products;
+
+  return [];
+};
 
 const SearchBar = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+
   const searchRef = useRef(null);
   const navigate = useNavigate();
 
-  // Search products function with mock data fallback
+  // chống “kết quả cũ ghi đè kết quả mới”
+  const reqIdRef = useRef(0);
+
+  // cache nhỏ để gõ nhanh đỡ gọi lại
+  const cacheRef = useRef(new Map());
+
   const searchProducts = async (query) => {
-    if (!query.trim()) {
+    const q = (query || "").trim();
+
+    if (q.length < MIN_QUERY_LEN) {
       setSearchResults([]);
       setShowResults(false);
+      setIsLoading(false);
       return;
     }
 
+    // mở dropdown ngay lập tức (để thấy loading)
+    setShowResults(true);
     setIsLoading(true);
+
+    const myReqId = ++reqIdRef.current;
+
+    // cache hit
+    const cached = cacheRef.current.get(q.toLowerCase());
+    if (cached) {
+      if (myReqId === reqIdRef.current) {
+        setSearchResults(cached);
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
-      const results = await productService.searchProducts(query);
-      setSearchResults(results || []);
-      setShowResults(true);
-    } catch (error) {
-      console.error('Search error:', error);
-      // Fallback to mock data
-      const mockProducts = [
-        {
-          id: 1,
-          name: 'Giày Chạy Thể Thao Nam ANTA Running Pro',
-          price: 1259100,
-          image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=600'
-        },
-        {
-          id: 2,
-          name: 'Giày Chạy Thể Thao Nữ ANTA Speed',
-          price: 1599000,
-          image: 'https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600'
-        },
-        {
-          id: 3,
-          name: 'Giày Thể Thao Nam ANTA Lifestyle',
-          price: 1899000,
-          image: 'https://images.pexels.com/photos/2529157/pexels-photo-2529157.jpeg?auto=compress&cs=tinysrgb&w=600'
-        }
-      ];
-      const filtered = mockProducts.filter(p =>
-        p.name.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(filtered);
-      setShowResults(true);
+      const data = await productService.searchProducts(q);
+
+      // nếu request này đã bị “request mới hơn” thay thế thì bỏ qua
+      if (myReqId !== reqIdRef.current) return;
+
+      const list = pickList(data);
+      const normalized = list.map(normalizeSearchItem).filter((x) => x?.id);
+      cacheRef.current.set(q.toLowerCase(), normalized);
+      setSearchResults(normalized);
+    } catch (err) {
+      if (myReqId !== reqIdRef.current) return;
+      console.error("Search error:", err);
+      setSearchResults([]);
     } finally {
-      setIsLoading(false);
+      if (myReqId === reqIdRef.current) setIsLoading(false);
     }
   };
 
-  // Handle search input change with debounce
+  // debounce theo searchTerm
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchProducts(searchTerm);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
+    const t = setTimeout(() => searchProducts(searchTerm), DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [searchTerm]);
 
-  // Handle search submit
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (searchTerm.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
-      setShowResults(false);
-      setSearchTerm('');
-    }
+    const q = searchTerm.trim();
+    if (!q) return;
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+    setShowResults(false);
   };
 
-  // Handle product click
   const handleProductClick = (product) => {
     navigate(`/product/${product.id}`);
     setShowResults(false);
-    setSearchTerm('');
+    setSearchTerm("");
   };
 
-  // Handle input focus
   const handleFocus = () => {
-    if (searchTerm.trim() && searchResults.length > 0) {
-      setShowResults(true);
-    }
+    if (searchTerm.trim().length >= MIN_QUERY_LEN) setShowResults(true);
   };
 
-  // Handle click outside
+  // click ngoài => đóng dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowResults(false);
       }
     };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -107,22 +138,33 @@ const SearchBar = () => {
       <form onSubmit={handleSubmit} className="search-form-inline">
         <div className="search-input-wrapper-inline">
           <svg className="search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <path d="M19 19L13.8 13.8M16 8.5C16 12.6421 12.6421 16 8.5 16C4.35786 16 1 12.6421 1 8.5C1 4.35786 4.35786 1 8.5 1C12.6421 1 16 4.35786 16 8.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path
+              d="M19 19L13.8 13.8M16 8.5C16 12.6421 12.6421 16 8.5 16C4.35786 16 1 12.6421 1 8.5C1 4.35786 4.35786 1 8.5 1C12.6421 1 16 4.35786 16 8.5Z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
+
           <input
             type="text"
             placeholder="Tìm kiếm sản phẩm..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              // gõ là mở dropdown luôn
+              if (e.target.value.trim().length >= MIN_QUERY_LEN) setShowResults(true);
+            }}
             onFocus={handleFocus}
             className="search-input-inline"
           />
+
           {searchTerm && (
             <button
               type="button"
               className="clear-search-btn"
               onClick={() => {
-                setSearchTerm('');
+                setSearchTerm("");
                 setSearchResults([]);
                 setShowResults(false);
               }}
@@ -130,10 +172,12 @@ const SearchBar = () => {
               ×
             </button>
           )}
+
+          {/* nếu bạn có nút “Tìm kiếm” cạnh input thì để type="submit" */}
+          {/* <button type="submit" className="search-submit-btn">Tìm kiếm</button> */}
         </div>
       </form>
 
-      {/* Search Results Dropdown */}
       {showResults && (
         <div className="search-dropdown-results">
           {isLoading ? (
@@ -149,30 +193,33 @@ const SearchBar = () => {
                   className="result-item-inline"
                   onClick={() => handleProductClick(product)}
                 >
-                  <img src={product.image || '/placeholder.jpg'} alt={product.name} />
+                  <img src={product.image} alt={product.name} />
                   <div className="result-info-inline">
                     <h4>{product.name}</h4>
-                    <p className="result-price-inline">{product.price.toLocaleString()}₫</p>
+                    <p className="result-price-inline">
+                      {(product.price || 0).toLocaleString()}₫
+                    </p>
                   </div>
                 </div>
               ))}
-              {searchResults.length > 5 && (
-                <div className="view-all-results-inline">
-                  <button onClick={() => {
-                    navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
+
+              <div className="view-all-results-inline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
                     setShowResults(false);
-                    setSearchTerm('');
-                  }}>
-                    Xem tất cả {searchResults.length} sản phẩm
-                  </button>
-                </div>
-              )}
+                  }}
+                >
+                  Xem tất cả {searchResults.length} sản phẩm
+                </button>
+              </div>
             </div>
-          ) : searchTerm && (
+          ) : searchTerm.trim().length >= MIN_QUERY_LEN ? (
             <div className="no-results-inline">
               <p>Không tìm thấy sản phẩm</p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

@@ -1018,6 +1018,7 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   box-shadow: 0 4px 12px rgba(215, 0, 16, 0.3);
+  margin-left : 370px;
 }
 
 .add-new-btn:hover {
@@ -1455,8 +1456,8 @@
 }
 
 .order-detail-date {
-  font-size: 14px;
-  color: #6b7280;
+  font-size: 17px;
+  color: #070707;
   font-weight: 600;
 }
 
@@ -1515,14 +1516,14 @@
 }
 
 .order-product-item .product-meta {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 17px;
+  color: #1d1d1d;
   font-weight: 500;
 }
 
 .order-product-item .product-price {
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
   color: #D70010;
 }
 
@@ -1701,4 +1702,57 @@
 .modal-body input::placeholder,
 .modal-body textarea::placeholder {
   color: #000000 !important;          /* placeholder xám */
+}
+
+.order-total-header-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-shipping-inline{
+  font-size: 17px;
+  opacity: 0.9;
+  white-space: nowrap;
+  color: #000000;
+}
+
+/* 0) FIX selector: modal chi tiết đơn hàng */
+.modal-content.order-detail-modal{
+  max-width: 640px;
+  width: min(640px, 95vw);
+}
+
+/* 1) Chặn scroll ngang trong modal */
+.modal-content,
+.modal-body{
+  overflow-x: hidden;
+}
+
+/* 2) Đảm bảo item sản phẩm luôn nằm trong khung */
+.order-products-list{ width: 100%; }
+
+.order-product-item{
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.order-product-item .product-info{
+  min-width: 0;              /* quan trọng: cho phép text co lại */
+}
+
+.order-product-item .product-price{
+  margin-left: auto;         /* đẩy tiền về mép phải trong khung */
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* 3) Phần “Tổng cộng” không bị tràn do nowrap */
+.order-total-header-row{
+  flex-wrap: wrap;
+}
+
+.order-shipping-inline{
+  white-space: normal;       /* bỏ nowrap để không làm tràn */
 }

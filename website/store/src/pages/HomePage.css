@@ -177,6 +177,7 @@
   margin-bottom: 8px;
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   transition: letter-spacing 0.3s ease;
+  color: #e8e8e8;
 }
 
 .sport-category-card:hover .sport-category-title {
@@ -558,6 +559,7 @@
   letter-spacing: 1.5px;
   text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   transition: letter-spacing 0.3s ease;
+  color: #e8e8e8;
 }
 
 .collection-showcase-card:hover .collection-showcase-title {
@@ -724,7 +726,7 @@
 
 .brand-story-description {
   font-size: 16px;
-  color: var(--color-text);
+  color: #000;
   line-height: 1.9;
   margin: 0;
   font-weight: var(--font-weight-regular);

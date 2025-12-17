@@ -185,21 +185,36 @@ export default function ShippingManagement({ onDataChange }) {
     setFilteredOrders(orders);
   };
 
+  // ShippingManagement.jsx (file hiện tại của bạn) - sửa hàm handleStatusChange
+
   const handleStatusChange = async (statusId) => {
     setSelectedStatus(statusId);
     setLoading(true);
 
+    // ✅ FIX: PENDING cần gom cả PAID + PENDING_PAYMENT => không lọc server theo status
+    const statusForServer =
+      statusId === 'ALL' ? undefined
+        : statusId === 'PENDING' ? undefined
+          : statusId;
+
     const result = await adminService.orders.getOrders({
-      status: statusId === 'ALL' ? undefined : statusId
+      status: statusForServer
     });
 
     if (result?.success && Array.isArray(result.data)) {
-      setFilteredOrders(result.data);
+      let data = result.data;
+
+      // ✅ nếu đang chọn PENDING => lọc client-side bằng normalizeStatus()
+      if (statusId === 'PENDING') {
+        data = data.filter(o => normalizeStatus(o?.status) === 'PENDING');
+      }
+
+      setFilteredOrders(data);
       setLoading(false);
       return;
     }
 
-    // fallback client-side
+    // fallback client-side (giữ nguyên)
     const next = statusId === 'ALL'
       ? orders
       : orders.filter(o => normalizeStatus(o.status) === statusId);
@@ -207,6 +222,7 @@ export default function ShippingManagement({ onDataChange }) {
     setFilteredOrders(next);
     setLoading(false);
   };
+
 
   const [updatingId, setUpdatingId] = useState(null);
 

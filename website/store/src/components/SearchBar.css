@@ -5,6 +5,9 @@
   height: 100%;
   display: flex;
   align-items: center;
+  max-width: 600px;
+  transform: scale(0.4);
+  transform-origin: left center;
 }
 
 .search-form-inline {
@@ -30,6 +33,7 @@
   background: #ffffff;
   border-color: #e5e5e5;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: scale(1.02);
 }
 
 .search-icon {
@@ -43,16 +47,18 @@
 .search-input-inline {
   width: 100%;
   height: 100%;
-  padding: 0 40px 0 44px;
+  padding: 10px 16px 10px 44px;
   border: none;
   background: transparent;
   font-size: 14px;
-  color: #111111;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #0c0c0c;
   outline: none;
+  transition: all 0.2s ease;
 }
 
 .search-input-inline::placeholder {
-  color: #6b6b6b;
+  color: #141313;
 }
 
 .clear-search-btn {
@@ -61,6 +67,7 @@
   background: none;
   border: none;
   font-size: 20px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #6b6b6b;
   cursor: pointer;
   padding: 4px 8px;
@@ -72,22 +79,25 @@
 .clear-search-btn:hover {
   background: #e5e5e5;
   color: #111111;
+  transform: scale(1.1);
 }
 
 /* Search Dropdown Results */
 .search-dropdown-results {
   position: absolute;
-  top: calc(100% + 12px);
+  top: calc(100% + 8px);
   left: 0;
   right: 0;
   background: #ffffff;
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e5e5;
-  max-height: 500px;
+  max-height: 150px;
   overflow-y: auto;
   z-index: 10000;
   animation: dropdownFadeIn 0.2s ease;
+  transform: scale(0.4);
+  transform-origin: top left;
 }
 
 @keyframes dropdownFadeIn {
@@ -108,6 +118,7 @@
   padding: 32px;
   gap: 12px;
   color: #6b6b6b;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .loading-spinner {
@@ -162,17 +173,20 @@
 .result-info-inline h4 {
   font-size: 14px;
   font-weight: 500;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #111111;
   margin: 0 0 4px 0;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .result-price-inline {
   font-size: 14px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #d70010;
   font-weight: 600;
   margin: 0;
@@ -188,17 +202,20 @@
   background: #f7f7f7;
   color: #111111;
   border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
+  padding: 10px 24px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   transition: all 0.15s ease;
 }
 
 .view-all-results-inline button:hover {
   background: #d70010;
   color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(215, 0, 16, 0.3);
 }
 
 .no-results-inline {
@@ -210,6 +227,7 @@
   margin: 0;
   color: #6b6b6b;
   font-size: 14px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Mobile Responsive */
@@ -240,4 +258,53 @@
   .result-price-inline {
     font-size: 13px;
   }
+}
+
+.search-bar-inline { position: relative; }
+.search-dropdown-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 9999; }
+.search-input-inline {
+  color: #111 !important;
+  -webkit-text-fill-color: #111 !important; /* hay bị theme override trên Chrome */
+  caret-color: #111 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+.search-input-inline::placeholder {
+  color: #777 !important;
+}
+
+.search-dropdown-results,
+.search-dropdown-results * {
+  color: #111;
+}
+
+/* ===== FIX: chữ trong input bị trắng/ẩn (bị CSS khác override) ===== */
+.search-bar-inline .search-input-wrapper-inline .search-input-inline {
+  color: #111 !important;
+  -webkit-text-fill-color: #111 !important; /* Chrome/Safari hay bị override */
+  caret-color: #111 !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Placeholder */
+.search-bar-inline .search-input-wrapper-inline .search-input-inline::placeholder {
+  color: #777 !important;
+  -webkit-text-fill-color: #777 !important;
+}
+
+/* Nếu bị autofill làm đổi màu chữ/nền */
+.search-bar-inline .search-input-wrapper-inline .search-input-inline:-webkit-autofill,
+.search-bar-inline .search-input-wrapper-inline .search-input-inline:-webkit-autofill:hover,
+.search-bar-inline .search-input-wrapper-inline .search-input-inline:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111 !important;
+  box-shadow: 0 0 0 1000px #fff inset !important; /* ép nền autofill */
+  transition: background-color 99999s ease-out 0s;
+}
+
+/* Đảm bảo nền wrapper không quá nhạt khi focus */
+.search-bar-inline .search-input-wrapper-inline {
+  background: #fff;
 }

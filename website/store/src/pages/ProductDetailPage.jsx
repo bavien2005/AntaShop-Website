@@ -9,12 +9,84 @@ import "./ProductDetailPage.css";
 export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { addToCart } = useCart();
+  const { addItem } = useCart();
   const { isInWishlist, addToWishlist, removeFromWishlist } = useWishlist();
 
   const [loading, setLoading] = useState(true);
   const [prod, setProd] = useState(null);
   const [error, setError] = useState(null);
+  const COLOR_MAP = {
+    // VI
+    "trắng": "#ffffff",
+    "trang": "#ffffff",
+    "đen": "#000000",
+    "den": "#000000",
+    "xám": "#9ca3af",
+    "xam": "#9ca3af",
+    "đỏ": "#ef4444",
+    "do": "#ef4444",
+    "xanh": "#22c55e",
+    "xanh lá": "#22c55e",
+    "xanh la": "#22c55e",
+    "xanh dương": "#3b82f6",
+    "xanh duong": "#3b82f6",
+    "vàng": "#eab308",
+    "vang": "#eab308",
+    "cam": "#f97316",
+    "hồng": "#ec4899",
+    "hong": "#ec4899",
+    "tím": "#a855f7",
+    "tim": "#a855f7",
+    "nâu": "#92400e",
+    "nau": "#92400e",
+    "be": "#f5f5dc",
+    "kem": "#fff7ed",
+
+    // EN
+    "white": "#ffffff",
+    "black": "#000000",
+    "gray": "#9ca3af",
+    "grey": "#9ca3af",
+    "red": "#ef4444",
+    "green": "#22c55e",
+    "blue": "#3b82f6",
+    "yellow": "#eab308",
+    "orange": "#f97316",
+    "pink": "#ec4899",
+    "purple": "#a855f7",
+    "brown": "#92400e",
+    "beige": "#f5f5dc",
+    "navy": "#1e3a8a",
+  };
+
+
+  const resolveCssColor = (raw) => {
+    const s = String(raw || "").trim();
+    if (!s) return null;
+
+    // #RGB / #RRGGBB / #RRGGBBAA
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s)) return s;
+
+    // rgb()/rgba()/hsl()/hsla()
+    if (/^(rgb|rgba|hsl|hsla)\(/i.test(s)) return s;
+
+    // map theo từ khoá (lowercase)
+    const key = s.toLowerCase();
+    return COLOR_MAP[key] || null;
+  };
+
+  const isLightColor = (hex) => {
+    if (!hex || typeof hex !== "string") return false;
+    if (!hex.startsWith("#")) return false;
+    const h = hex.replace("#", "");
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h.slice(0, 6);
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    // perceived luminance
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.75; // đủ sáng để cần border rõ hơn
+  };
 
   // gallery + zoom
   const [selectedImage, setSelectedImage] = useState(0);
@@ -33,7 +105,16 @@ export default function ProductDetailPage() {
 
   const placeholder =
     "https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=800";
+  const DEFAULT_ANTA_DESCRIPTION = `
+Tại ANTA Shop, mỗi sản phẩm được lựa chọn để đồng hành cùng bạn trong mọi nhịp sống: 
+từ những đôi giày êm – bền – linh hoạt, đến áo/quần tối giản dễ phối, và phụ kiện hoàn thiện tổng thể.
 
+Chất liệu được ưu tiên thoáng, nhẹ và dễ chăm sóc; form dáng hướng đến sự vừa vặn và cảm giác mặc/đi thoải mái.
+Dù bạn theo đuổi phong cách thể thao năng động hay casual hằng ngày, ANTA Shop luôn có lựa chọn phù hợp.
+
+Gợi ý sử dụng: phối tone trung tính để dễ lên đồ, kết hợp phụ kiện đơn giản để tạo điểm nhấn tinh tế.
+Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn ANTA Shop, mình hỗ trợ nhanh.
+`.trim();
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -160,48 +241,44 @@ export default function ProductDetailPage() {
   const handleMouseLeave = () => setIsZoomed(false);
 
   // actions
-  const handleAddToCartClick = () => {
+  const handleAddToCartClick = async () => {
     // nếu có variants thì bắt buộc chọn size/color nếu tồn tại tập lựa chọn
     if (variants.length) {
       if (allSizes.length && !selectedSize) return alert("Vui lòng chọn kích thước");
       if (allColors.length && !selectedColor) return alert("Vui lòng chọn màu sắc");
     }
 
-    // --- resolve variantId an toàn (các kiểu tên khác nhau: id, _id, variantId, sku...) ---
+    // --- resolve variantId an toàn ---
     const resolvedVariantId =
       activeVariant?.id ??
       activeVariant?._id ??
       activeVariant?.variantId ??
-      activeVariant?.sku ?? // nếu backend dùng sku -> bạn có thể map sku -> variantId trên BE, fallback bên dưới
+      activeVariant?.sku ??
       null;
 
-    // Nếu sản phẩm có variants mà không tìm được id -> cảnh báo
     if (variants.length && !resolvedVariantId) {
-      // fallback: nếu backend chấp nhận dùng productId làm variantId cho sản phẩm không phân biến thể
-      // nhưng nếu backend yêu cầu bắt buộc variantId, hãy bật alert để người dùng chọn biến thể hoặc dev xử lý mapping trên BE.
-      console.warn("Product has variants but resolvedVariantId is null. Using product id as fallback.");
+      console.warn(
+        "Product has variants but resolvedVariantId is null. Using product id as fallback."
+      );
     }
 
-    // Nếu backend của bạn **bắt buộc** variantId (như log order-service), dùng fallback = productId
     const finalVariantId = resolvedVariantId ?? Number(id);
 
-    // Gọi addToCart: CartContext.addToCart nhận (productObject, quantity)
-    addToCart(
-      {
-        id: Number(id),
-        name: prod?.name || "Sản phẩm",
-        price: currentPrice,
-        image: prod?.images?.[0] || prod?.thumbnail || placeholder,
-        size: selectedSize || undefined,
-        color: selectedColor || undefined,
-        // đảm bảo gửi một giá trị (number hoặc null) - tốt nhất là number
-        variantId: finalVariantId !== null ? Number(finalVariantId) : null,
-        sku: activeVariant?.sku || prod?.sku || (variants.length ? variants[0]?.sku : undefined),
-      },
-      Number(quantity) // quantity đảm bảo là number
-    );
+    await addItem({
+      id: Number(id),
+      name: prod?.name || "Sản phẩm",
+      price: currentPrice,
+      image: prod?.images?.[0] || prod?.thumbnail || placeholder,
+      size: selectedSize || undefined,
+      color: selectedColor || undefined,
+      variantId: finalVariantId !== null ? Number(finalVariantId) : null,
+      sku: activeVariant?.sku || prod?.sku || (variants.length ? variants[0]?.sku : undefined),
+      quantity: Number(quantity), // ✅ truyền quantity trong object, đúng với useCart.addItem
+    });
+
     alert("Đã thêm sản phẩm vào giỏ hàng!");
   };
+
 
   const handleBuyNow = () => {
     handleAddToCartClick();
@@ -222,6 +299,43 @@ export default function ProductDetailPage() {
       alert("Có lỗi xảy ra: " + (e?.message || e));
     }
   };
+  // ---- Detail text (Màu / Size / Mô tả chi tiết) ----
+  const colorsText = useMemo(() => {
+    if (allColors?.length) return allColors.join(", ");
+    // fallback nếu BE có field khác
+    if (prod?.color) return String(prod.color);
+    return "—";
+  }, [allColors, prod]);
+
+  const sizesText = useMemo(() => {
+    if (allSizes?.length) return allSizes.join(", ");
+    if (prod?.size) return String(prod.size);
+    return "—";
+  }, [allSizes, prod]);
+
+  const detailDescText = useMemo(() => {
+    // Ưu tiên lấy từ features nếu có
+    if (Array.isArray(prod?.features) && prod.features.length) {
+      return prod.features.map((x) => String(x)).filter(Boolean).join(", ");
+    }
+
+    // Thử gom 1 số thuộc tính hay gặp trong variants.attributes (vd: material)
+    const materials = new Set();
+    (Array.isArray(prod?.variants) ? prod.variants : []).forEach((v) => {
+      const m = v?.attributes?.material;
+      if (m) materials.add(String(m));
+    });
+
+    const parts = [];
+    if (materials.size) parts.push(`Chất liệu: ${Array.from(materials).join(", ")}`);
+    if (prod?.brand) parts.push(`Thương hiệu: ${prod.brand}`);
+    if (prod?.categoryName) parts.push(`Danh mục: ${prod.categoryName}`);
+
+    // fallback chung chung nếu vẫn rỗng
+    return parts.length
+      ? parts.join(", ")
+      : "Thiết kế tối giản, dễ phối, phù hợp sử dụng hằng ngày; chất liệu bền, dễ vệ sinh và mang lại cảm giác thoải mái khi dùng.";
+  }, [prod]);
 
   // ---- RENDER ----
   if (loading) {
@@ -385,31 +499,43 @@ export default function ProductDetailPage() {
                         )}
                       </label>
                       <div className="color-options">
-                        {allColors.map((c) => (
-                          <button
-                            key={c}
-                            className={`color-option ${selectedColor === String(c) ? "selected" : ""
-                              }`}
-                            onClick={() => setSelectedColor(String(c))}
-                            title={String(c)}
-                            aria-label={String(c)}
-                            style={{ backgroundColor: undefined }}
-                          >
-                            {selectedColor === String(c) && (
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                <path
-                                  d="M13.3332 4L5.99984 11.3333L2.6665 8"
-                                  stroke="#000"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
-                            <span style={{ fontSize: 12, fontWeight: 700 }}>{String(c)}</span>
-                          </button>
-                        ))}
+                        {allColors.map((c) => {
+                          const cssColor = resolveCssColor(c);
+                          const light = isLightColor(cssColor);
+
+                          const isSelected = selectedColor === String(c);
+
+                          return (
+                            <button
+                              key={c}
+                              className={[
+                                "color-option",
+                                isSelected ? "selected" : "",
+                                cssColor ? "is-swatch" : "is-text",
+                                light ? "is-light" : "",
+                              ].join(" ")}
+                              onClick={() => setSelectedColor(String(c))}
+                              title={String(c)}
+                              aria-label={String(c)}
+                              style={
+                                cssColor
+                                  ? { backgroundColor: cssColor }
+                                  : undefined
+                              }
+                            >
+                              {/* nếu nhận ra màu -> không cần chữ trong vòng tròn, nhìn sạch hơn */}
+                              {cssColor ? (
+                                isSelected ? (
+                                  <span className="swatch-check">✓</span>
+                                ) : null
+                              ) : (
+                                <span className="swatch-text">{String(c)}</span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
+
                     </div>
                   )}
 
@@ -566,7 +692,40 @@ export default function ProductDetailPage() {
               {activeTab === "description" && (
                 <div className="tab-panel">
                   <h3 className="panel-heading">Giới thiệu sản phẩm</h3>
-                  <p className="panel-text">{prod.description || "Đang cập nhật..."}</p>
+                  <p className="panel-text">
+                    { DEFAULT_ANTA_DESCRIPTION}
+                    
+                  </p>
+                  <p fontSize="16px" lineHeight="1.6" className="panel-text">
+                    Mô Tả Sản Phẩm: {prod.description || "—"}
+                  </p>
+                  <div className="pdp-detail-block">
+                    <h4 className="pdp-detail-title">THÔNG TIN CHI TIẾT</h4>
+
+                    <ul className="pdp-detail-list">
+                      <li>
+                        <span className="dot">–</span>
+                        <span className="k">Màu:</span>
+                        <span className="v">{colorsText}</span>
+                      </li>
+
+                      <li>
+                        <span className="dot">–</span>
+                        <span className="k">Size:</span>
+                        <span className="v">{sizesText}</span>
+                      </li>
+
+                      <li>
+                        <span className="dot">–</span>
+                        <span className="k">Mô tả chi tiết:</span>
+                        <span className="v">{detailDescText}</span>
+                      </li>
+                    </ul>
+
+                    <div className="pdp-detail-note">
+                      Lưu ý: Thông tin có thể thay đổi nhẹ theo từng lô hàng/phiên bản. Nếu bạn cần tư vấn size hoặc phối đồ, ANTA Shop hỗ trợ nhanh.
+                    </div>
+                  </div>
                   {Array.isArray(prod.features) && prod.features.length > 0 && (
                     <>
                       <h4 className="panel-subheading">Đặc điểm nổi bật</h4>

@@ -11,6 +11,49 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
   const [loading, setLoading] = useState(true);
   const [editingProduct, setEditingProduct] = useState(null);
   const [expanded, setExpanded] = useState({});
+  const normalizeFilters = (raw) => {
+    const n = (v) => {
+      if (v === '' || v === null || v === undefined) return undefined;
+      const x = Number(v);
+      return Number.isFinite(x) ? x : undefined;
+    };
+
+    const trimmed = {
+      name: (raw.name || '').trim(),
+      category: (raw.category || '').trim(),
+      quantityMin: n(raw.quantityMin),
+      quantityMax: n(raw.quantityMax),
+      priceMin: n(raw.priceMin),
+      priceMax: n(raw.priceMax),
+    };
+
+    // swap nếu nhập min > max
+    if (trimmed.quantityMin !== undefined && trimmed.quantityMax !== undefined && trimmed.quantityMin > trimmed.quantityMax) {
+      [trimmed.quantityMin, trimmed.quantityMax] = [trimmed.quantityMax, trimmed.quantityMin];
+    }
+    if (trimmed.priceMin !== undefined && trimmed.priceMax !== undefined && trimmed.priceMin > trimmed.priceMax) {
+      [trimmed.priceMin, trimmed.priceMax] = [trimmed.priceMax, trimmed.priceMin];
+    }
+
+    // loại bỏ field rỗng để API dễ xử lý
+    const payload = {};
+    Object.entries(trimmed).forEach(([k, v]) => {
+      if (v !== '' && v !== undefined) payload[k] = v;
+    });
+
+    return payload;
+  };
+
+  const isFilterEmpty = (f) => {
+    return !(
+      (f.name || '').trim() ||
+      (f.category || '').trim() ||
+      String(f.quantityMin || '').trim() ||
+      String(f.quantityMax || '').trim() ||
+      String(f.priceMin || '').trim() ||
+      String(f.priceMax || '').trim()
+    );
+  };
 
   useEffect(() => { loadProducts(); /* eslint-disable-next-line */ }, []);
 
@@ -37,15 +80,38 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
   const handleSearch = async () => {
     setLoading(true);
     try {
-      const result = await adminProductService.getProducts(filters);
+      const payload = normalizeFilters(filters);
+
+      // nếu chưa nhập gì -> trả về list gốc
+      if (Object.keys(payload).length === 0) {
+        setFilteredProducts(productsRaw);
+        return;
+      }
+
+      const result = await adminProductService.getProducts(payload);
       if (result?.success) setFilteredProducts(result.data || []);
       else if (Array.isArray(result)) setFilteredProducts(result);
-      else alert('Không tìm thấy dữ liệu phù hợp');
-    } catch (err) { console.error(err); alert('Lỗi khi tìm kiếm'); }
-    finally { setLoading(false); }
+      else setFilteredProducts([]);
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi khi tìm kiếm');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReset = () => { setFilters({ name: '', quantityMin: '', quantityMax: '', category: '', priceMin: '', priceMax: '' }); setFilteredProducts(productsRaw); };
+  const LOW_STOCK_THRESHOLD = 5;
+
+  const getStockStatus = (stock) => {
+    const n = Number(stock || 0);
+    if (n <= 0) return { key: "out", label: "Hết hàng" };
+    if (n <= LOW_STOCK_THRESHOLD) return { key: "low-stock", label: "Sắp hết" };
+    return { key: "active", label: "Đang bán" };
+  };
+  const handleReset = async () => {
+    setFilters({ name: '', quantityMin: '', quantityMax: '', category: '', priceMin: '', priceMax: '' });
+    setFilteredProducts(productsRaw);
+  };
 
   const formatPrice = (price) => { if (price === null || price === undefined || isNaN(price)) return '—'; return new Intl.NumberFormat('vi-VN').format(price); };
 
@@ -71,8 +137,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
             id: pid,
             name: item.name || item.productName || item.product_name || item.title || 'Sản phẩm',
             thumbnail: item.thumbnail || (item.images && item.images[0]) || item.image || null,
-            category: item.category ?? item.cat ?? '',
-            price: item.price ?? item.productPrice ?? 0,
+            category: item.category ?? item.categoryName ?? item.cat ?? '', price: item.price ?? item.productPrice ?? 0,
             totalStock: item.totalStock ?? item.total_stock ?? item.quantity ?? item.stock ?? 0,
             rating: item.rating ?? 5,
             sales: item.sales ?? 0,
@@ -111,7 +176,7 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
         return;
       }
 
-      const pid = item.id ?? Math.random().toString(36).slice(2,8);
+      const pid = item.id ?? Math.random().toString(36).slice(2, 8);
       if (!map.has(pid)) map.set(pid, { product: item, variants: [] });
       else { const e = map.get(pid); e.product = { ...e.product, ...item }; }
     });
@@ -159,9 +224,29 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
 
   const handleProductSaved = async (savedProduct) => { setEditingProduct(null); setActiveSubTab('my-products'); await loadProducts(); if (onDataChange) onDataChange(); };
 
+  // src/components/ProductManagement.jsx
+
   if (activeSubTab === 'add-product') {
-    return <AdminAddProduct editingProduct={editingProduct} onSaved={handleProductSaved} onCancel={() => { setEditingProduct(null); setActiveSubTab('my-products'); }} />;
+    return (
+      <AdminAddProduct
+        editingProduct={editingProduct}
+        onSaved={handleProductSaved}
+        onCancel={() => {
+          setEditingProduct(null);
+          setActiveSubTab('my-products');
+        }}
+
+        // ✅ THÊM: sau khi xóa category -> quay về my-products và reload list
+        onCategoryDeleted={async () => {
+          setEditingProduct(null);
+          setActiveSubTab('my-products');
+          await loadProducts();
+          if (onDataChange) onDataChange();
+        }}
+      />
+    );
   }
+
 
   if (loading) return (
     <div className="product-management">
@@ -186,52 +271,117 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
           <button className="tab-button" onClick={() => setActiveSubTab('violations')}>Vi phạm</button>
         </div>
 
-        <div className="filters-card">
+        <form
+          className="filters-card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSearch();
+          }}
+        >
           <div className="filters-grid">
             <div>
               <label className="filter-label">Tên sản phẩm</label>
-              <input className="filter-input" value={filters.name} onChange={(e) => handleFilterChange('name', e.target.value)} placeholder="Nhập tên sản phẩm..." />
+              <input
+                className="filter-input"
+                value={filters.name}
+                onChange={(e) => handleFilterChange('name', e.target.value)}
+                placeholder="Nhập tên sản phẩm..."
+              />
             </div>
+
             <div>
               <label className="filter-label">Danh mục</label>
-              <input className="filter-input" value={filters.category} onChange={(e) => handleFilterChange('category', e.target.value)} placeholder="Nhập danh mục..." />
+              <input
+                className="filter-input"
+                value={filters.category}
+                onChange={(e) => handleFilterChange('category', e.target.value)}
+                placeholder="Nhập danh mục..."
+              />
             </div>
+
             <div>
               <label className="filter-label">Số lượng</label>
-              <div style={{ display:'flex', gap:8 }}>
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.quantityMin} onChange={(e) => handleFilterChange('quantityMin', e.target.value)} placeholder="Tối thiểu" />
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.quantityMax} onChange={(e) => handleFilterChange('quantityMax', e.target.value)} placeholder="Tối đa" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="number"
+                  className="filter-input"
+                  style={{ flex: 1 }}
+                  value={filters.quantityMin}
+                  onChange={(e) => handleFilterChange('quantityMin', e.target.value)}
+                  placeholder="Tối thiểu"
+                  min="0"
+                />
+                <input
+                  type="number"
+                  className="filter-input"
+                  style={{ flex: 1 }}
+                  value={filters.quantityMax}
+                  onChange={(e) => handleFilterChange('quantityMax', e.target.value)}
+                  placeholder="Tối đa"
+                  min="0"
+                />
               </div>
             </div>
+
             <div>
               <label className="filter-label">Giá (VNĐ)</label>
-              <div style={{ display:'flex', gap:8 }}>
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.priceMin} onChange={(e) => handleFilterChange('priceMin', e.target.value)} placeholder="Tối thiểu" />
-                <input type="number" className="filter-input" style={{ flex:1 }} value={filters.priceMax} onChange={(e) => handleFilterChange('priceMax', e.target.value)} placeholder="Tối đa" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="number"
+                  className="filter-input"
+                  style={{ flex: 1 }}
+                  value={filters.priceMin}
+                  onChange={(e) => handleFilterChange('priceMin', e.target.value)}
+                  placeholder="Tối thiểu"
+                  min="0"
+                />
+                <input
+                  type="number"
+                  className="filter-input"
+                  style={{ flex: 1 }}
+                  value={filters.priceMax}
+                  onChange={(e) => handleFilterChange('priceMax', e.target.value)}
+                  placeholder="Tối đa"
+                  min="0"
+                />
               </div>
             </div>
           </div>
 
           <div className="filter-actions-row">
-            <button className="filter-search-btn" onClick={handleSearch}>🔍 Tìm kiếm</button>
-            <button className="filter-reset-btn" onClick={handleReset}>↻ Đặt lại</button>
-            <div className="total-results"><span className="result-count">{groupedProducts.length}</span> sản phẩm</div>
+            <button className="filter-search-btn" type="submit" disabled={loading}>
+              🔍 Tìm kiếm
+            </button>
+
+            <button
+              className="filter-reset-btn"
+              type="button"
+              onClick={handleReset}
+              disabled={loading || isFilterEmpty(filters)}
+              title={isFilterEmpty(filters) ? 'Không có bộ lọc để đặt lại' : 'Đặt lại bộ lọc'}
+            >
+              ↻ Đặt lại
+            </button>
+
+            <div className="total-results" aria-live="polite">
+              <span className="result-count">{groupedProducts.length}</span> sản phẩm
+            </div>
           </div>
-        </div>
+        </form>
+
 
         <div className="products-table-card">
           <table className="data-table" aria-label="Danh sách sản phẩm">
             {/* colgroup to lock proportions and prevent CSS override misalignment */}
             <colgroup>
-              <col style={{ width: '25%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: "30%" }} /> {/* Sản phẩm */}
+              <col style={{ width: "14%" }} /> {/* Danh mục */}
+              <col style={{ width: "12%" }} /> {/* Giá */}
+              <col style={{ width: "10%" }} /> {/* Số lượng */}
+              <col style={{ width: "8%" }} />  {/* Variants */}
+              <col style={{ width: "10%" }} /> {/* Đánh giá */}
+              <col style={{ width: "8%" }} /> {/* Trạng thái */}
+              <col style={{ width: "8%" }} />  {/* Thao tác */}
             </colgroup>
 
             <thead>
@@ -240,14 +390,12 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                 <th className="col-category">Danh mục</th>
                 <th className="col-price">Giá</th>
                 <th className="col-quantity">Số lượng</th>
-                <th className="col-sales">Đã bán</th>
                 <th className="col-variants">Variants</th>
                 <th className="col-rating">Đánh giá</th>
                 <th className="col-status">Trạng thái</th>
                 <th className="col-actions">Thao tác</th>
               </tr>
             </thead>
-
             <tbody>
               {groupedProducts.map(({ product, variants }) => {
                 const pid = product.id;
@@ -258,26 +406,51 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
 
                 return (
                   <React.Fragment key={pid}>
-                    {/* parent */}
                     <tr className="table-row parent-row" role="row">
                       <td className="product-cell col-product">
                         <div className="product-main">
-                          <button className={`expand-btn ${isExpanded ? 'open' : ''}`} onClick={() => toggleExpand(pid)} aria-label={isExpanded ? 'Thu gọn variants' : 'Mở variants'}>{isExpanded ? '▾' : '▸'}</button>
+                          <button
+                            className={`expand-btn ${isExpanded ? "open" : ""}`}
+                            onClick={() => toggleExpand(pid)}
+                            aria-label={isExpanded ? "Thu gọn variants" : "Mở variants"}
+                          >
+                            {isExpanded ? "▾" : "▸"}
+                          </button>
+
                           <img src={getProductImage(product)} alt={product.name} className="product-thumbnail" />
+
                           <div className="product-text">
                             <div className="product-name">{product.name}</div>
-                            <div className="product-brand">{product.brand}</div>
+                            <div className="product-brand">{product.brand || "—"}</div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="category-cell col-category">{product.category}</td>
+                      <td className="category-cell col-category">
+                        {product.category || product.categoryName || "—"}
+                      </td>
+
                       <td className="price-cell col-price">{priceText}</td>
-                      <td className="quantity-cell col-quantity"><span className={totalStock <= 0 ? 'low-stock-badge' : ''}>{totalStock}</span></td>
-                      <td className="sales-cell col-sales">{product.sales ?? 0}</td>
-                      <td className="variants-cell col-variants" title={variantsCount ? `${variantsCount} variants` : 'Không có variant'}>{variantsCount}</td>
-                      <td className="rating-cell col-rating">{'★'.repeat(product.rating ?? 5)}</td>
-                      <td className="status-cell col-status"><span className={`status-indicator ${product.status ?? (totalStock > 0 ? 'active' : 'low-stock')}`}>{product.status === 'active' ? 'Đang bán' : 'Sắp hết'}</span></td>
+
+                      <td className="quantity-cell col-quantity">
+                        <span className={totalStock <= LOW_STOCK_THRESHOLD ? "low-stock-badge" : ""}>
+                          {totalStock}
+                        </span>
+                      </td>
+
+                      <td className="variants-cell col-variants" title={variantsCount ? `${variantsCount} variants` : "Không có variant"}>
+                        {variantsCount}
+                      </td>
+
+                      <td className="rating-cell col-rating">{"★".repeat(5)}</td>
+
+                      <td className="status-cell col-status">
+                        {(() => {
+                          const st = getStockStatus(totalStock);
+                          return <span className={`status-indicator ${st.key}`}>{st.label}</span>;
+                        })()}
+                      </td>
+
                       <td className="actions-cell col-actions">
                         <div className="action-buttons-group">
                           <button className="action-edit-btn" onClick={() => handleEditProduct(pid)} title="Chỉnh sửa">✏️</button>
@@ -286,41 +459,73 @@ export default function ProductManagement({ activeSubTab, setActiveSubTab, onDat
                       </td>
                     </tr>
 
-                    {/* variants - horizontal and aligned */}
-                    {isExpanded && variantsCount > 0 && variants.map((v, idx) => {
-                      const vid = v.id ?? `${pid}-v-${idx}`;
-                      const vPriceText = v.price !== undefined && v.price !== null ? `${formatPrice(Number(v.price))} VNĐ` : '—';
-                      const vStock = Number(v.stock ?? v.quantity ?? 0);
-                      const vSize = v.size ?? (v.attributes && v.attributes.size) ?? '';
-                      const vColor = v.color ?? (v.attributes && v.attributes.color) ?? '';
-                      const metaParts = [];
-                      if (vSize) metaParts.push(`Size: ${vSize}`);
-                      if (vColor) metaParts.push(`Color: ${vColor}`);
-                      if (v.attributes) {
-                        const other = Object.entries(v.attributes).filter(([k]) => k !== 'size' && k !== 'color').map(([k,val]) => `${k}:${val}`);
-                        if (other.length) metaParts.push(other.join(' • '));
-                      }
 
-                      return (
-                        <tr key={vid} className="variant-row">
-                          <td className="variant-detail-cell" colSpan={9}>
-                            <div className="variant-row-inner">
-                              <div className="variant-product-content">
-                                <img src={v.thumbnail || product.thumbnail || placeholderImage} alt={v.sku || v.id} className="variant-thumbnail" />
-                                <div className="variant-main-inline">
-                                  <div style={{ fontWeight:800, fontSize:13 }}>{v.sku ?? `Variant ${idx+1}`}</div>
-                                  <div className="variant-meta">{metaParts.join(' • ') || (v.attributes ? Object.entries(v.attributes).map(([k,val]) => `${k}:${val}`).join(' • ') : '')}</div>
-                                </div>
-                              </div>
-                              <div className="variant-right-info">
-                                <span className="variant-price-text">{vPriceText}</span>
-                                <span className="variant-stock-text">SL: {vStock}</span>
-                              </div>
+                    {isExpanded && variantsCount > 0 && (
+                      <tr className="variant-subrow">
+                        <td colSpan={8} className="variant-subcell">
+                          <div className="variant-panel">
+                            <div className="variant-panel-title">
+                              Variants ({variantsCount})
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+
+                            <div className="variant-grid">
+                              {variants.map((v, idx) => {
+                                const vid = v.id ?? `${pid}-v-${idx}`;
+                                const vPriceText =
+                                  v.price !== undefined && v.price !== null
+                                    ? `${formatPrice(Number(v.price))} VNĐ`
+                                    : "—";
+                                const vStock = Number(v.stock ?? v.quantity ?? 0);
+                                const vSize = v.size ?? (v.attributes && v.attributes.size) ?? "";
+                                const vColor = v.color ?? (v.attributes && v.attributes.color) ?? "";
+
+                                const metaParts = [];
+                                if (vSize) metaParts.push(`Size: ${vSize}`);
+                                if (vColor) metaParts.push(`Color: ${vColor}`);
+                                if (v.attributes) {
+                                  const other = Object.entries(v.attributes)
+                                    .filter(([k]) => k !== "size" && k !== "color")
+                                    .map(([k, val]) => `${k}:${val}`);
+                                  if (other.length) metaParts.push(other.join(" • "));
+                                }
+
+                                const st = getStockStatus(vStock);
+
+                                return (
+                                  <div key={vid} className="variant-card">
+                                    <div className="variant-left">
+                                      <img
+                                        className="variant-thumb"
+                                        src={v.thumbnail || product.thumbnail || placeholderImage}
+                                        alt={v.sku || String(vid)}
+                                      />
+                                      <div className="variant-info">
+                                        <div className="variant-sku">{v.sku ?? `Variant ${idx + 1}`}</div>
+                                        <div className="variant-meta">{metaParts.join(" • ") || "—"}</div>
+                                      </div>
+                                    </div>
+
+                                    <div className="variant-right">
+                                      <div className="variant-kv">
+                                        <span className="k">Giá</span>
+                                        <span className="v">{vPriceText}</span>
+                                      </div>
+                                      <div className="variant-kv">
+                                        <span className="k">SL</span>
+                                        <span className="v">{vStock}</span>
+                                      </div>
+                                      <span className={`status-indicator ${st.key}`}>{st.label}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+
                   </React.Fragment>
                 );
               })}
