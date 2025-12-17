@@ -313,11 +313,6 @@ const USE_REAL_PRODUCT_API = Boolean(
 
 const PRODUCT_BASE = "/api/product";
 
-<<<<<<< HEAD
-=======
-const PRODUCT_BASE = "/api/product";
-
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 const CLOUD_BASE_FALLBACK =
   import.meta.env.VITE_CLOUD_API_URL ||
   import.meta.env.VITE_CLOUD_URL ||
@@ -428,13 +423,8 @@ const normalizeFromBackend = (p = {}) => {
       v?.stock !== undefined && v?.stock !== null
         ? parseIntSafe(v.stock)
         : v?.quantity !== undefined && v?.quantity !== null
-<<<<<<< HEAD
           ? parseIntSafe(v.quantity)
           : 0;
-=======
-        ? parseIntSafe(v.quantity)
-        : 0;
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
     return {
       id: v?.id ?? null,
@@ -456,14 +446,8 @@ const normalizeFromBackend = (p = {}) => {
     p.totalStock !== undefined && p.totalStock !== null
       ? parseIntSafe(p.totalStock)
       : variants.length
-<<<<<<< HEAD
         ? variants.reduce((s, v) => s + Number(v.stock || 0), 0)
         : p.quantity ?? p.stock ?? 0;
-=======
-      ? variants.reduce((s, v) => s + Number(v.stock || 0), 0)
-      : p.quantity ?? p.stock ?? 0;
-
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   return {
     id: p.id,
     name: p.name,
@@ -472,16 +456,11 @@ const normalizeFromBackend = (p = {}) => {
     images: safeImages,
     thumbnail: thumbnail || "",
     price: computedPrice,
-<<<<<<< HEAD
 
     categoryId: p.categoryId ?? null,
     categoryName: p.categoryName || p.category || "",
     category: p.categoryName || p.category || "",   // ✅ thêm dòng này (để ProductManagement dùng)
 
-=======
-    categoryId: p.categoryId ?? null,                 // chỉ là ID (đúng theo BE)
-    categoryName: p.categoryName || p.category || "", // nếu BE/FE có tên
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
     createdAt: p.createdAt,
     totalStock: totalStock ?? 0,
     rating: p.rating ?? 5,
@@ -502,21 +481,12 @@ export const adminProductService = {
           Array.isArray(data)
             ? data
             : Array.isArray(data?.data)
-<<<<<<< HEAD
               ? data.data
               : Array.isArray(data?.items)
                 ? data.items
                 : Array.isArray(data?.products)
                   ? data.products
                   : [];
-=======
-            ? data.data
-            : Array.isArray(data?.items)
-            ? data.items
-            : Array.isArray(data?.products)
-            ? data.products
-            : [];
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
         return { success: true, data: list.map(normalizeFromBackend) };
       } catch (err) {
         return { success: false, error: err?.response?.data || err.message };
@@ -527,12 +497,8 @@ export const adminProductService = {
     await new Promise((r) => setTimeout(r, 150));
     return { success: true, data: mockProducts.map(normalizeFromBackend) };
   },
-<<<<<<< HEAD
 
   async getProduct(id) {
-=======
-  syncProductImages: async (productId) => {
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
     if (USE_REAL_PRODUCT_API) {
       try {
         const res = await productApi.get(`${PRODUCT_BASE}/${id}`);
@@ -542,30 +508,6 @@ export const adminProductService = {
       }
     }
 
-<<<<<<< HEAD
-=======
-    const p = mockProducts.find((x) => String(x.id) === String(id));
-    return p
-      ? { success: true, data: normalizeFromBackend(p) }
-      : { success: false, error: "Không tìm thấy sản phẩm" };
-  },
-
-  async syncProductImages(productId) {
-    if (USE_REAL_PRODUCT_API) {
-      try {
-        const res = await productApi.put(`${PRODUCT_BASE}/sync-images/${productId}`);
-        return { success: true, data: normalizeFromBackend(res.data) };
-      } catch (err) {
-        return {
-          success: false,
-          error:
-            err?.response?.data ||
-            err?.message ||
-            "syncProductImages API error",
-        };
-      }
-    }
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
     const p = mockProducts.find((x) => String(x.id) === String(id));
     return p
       ? { success: true, data: normalizeFromBackend(p) }
@@ -665,11 +607,7 @@ export const adminProductService = {
     mockProducts.unshift(newProduct);
     try {
       localStorage.setItem("anta_admin_products_v2", JSON.stringify(mockProducts));
-<<<<<<< HEAD
     } catch { }
-=======
-    } catch {}
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
     return {
       success: true,
@@ -743,11 +681,7 @@ export const adminProductService = {
     mockProducts[idx] = merged;
     try {
       localStorage.setItem("anta_admin_products_v2", JSON.stringify(mockProducts));
-<<<<<<< HEAD
     } catch { }
-=======
-    } catch {}
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
     return {
       success: true,
@@ -772,11 +706,7 @@ export const adminProductService = {
     mockProducts.splice(idx, 1);
     try {
       localStorage.setItem("anta_admin_products_v2", JSON.stringify(mockProducts));
-<<<<<<< HEAD
     } catch { }
-=======
-    } catch {}
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
     return { success: true, message: "Xóa thành công (mock)" };
   },

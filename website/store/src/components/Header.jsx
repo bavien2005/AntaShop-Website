@@ -1,8 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-<<<<<<< HEAD
-=======
-import React, { useEffect, useRef, useState } from "react";
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 import "./header.css";
 import { useNavigate, Link } from "react-router-dom";
 import { useCart, useAuth } from "../contexts";
@@ -16,65 +12,17 @@ const CANON_TITLES = [
   { key: "accessories", label: "PHỤ KIỆN" },
   { key: "kids", label: "KIDS" },
 ];
-<<<<<<< HEAD
-=======
-import { getGroupedCategories } from "../services/categories";
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
 const Header = () => {
   const navigate = useNavigate();
-  const { totalItems } = useCart();
+  const { totalItems = 0 } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
 
-<<<<<<< HEAD
-=======
-
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // timers để hover mượt
-<<<<<<< HEAD
-=======
-  
-  // menu tĩnh + động (danh mục)
-
-  useEffect(() => {
-    (async () => {
-      let grouped = {};
-      try {
-        grouped = await getGroupedCategories();
-      } catch (e) {
-        console.warn("load categories for header failed", e);
-      }
-
-      const dynamicGroups = CANON_TITLES.map((t) => ({
-        id: `dyn-${t.key}`,
-        name: t.label,
-        link: `/shop/${t.key}`,
-        hasDropdown: true,
-        dropdown: [
-          {
-            title: "Danh mục",
-            items: (grouped[t.key] || []).map((c) => ({
-              name: c.name,
-              link: `/shop/${t.key}/${c.slug}`,
-            })),
-          },
-        ],
-      }));
-
-      setMenuData([...MENU_ITEMS, ...dynamicGroups]);
-    })();
-
-    return () => {
-      window.clearTimeout(openTimeoutRef.current);
-      window.clearTimeout(closeTimeoutRef.current);
-    };
-  }, []);
-  // timers để hover mượt
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   const openTimeoutRef = useRef(null);
   const closeTimeoutRef = useRef(null);
 
@@ -127,15 +75,6 @@ const Header = () => {
     openTimeoutRef.current = window.setTimeout(() => {
       setActiveDropdown(itemId);
     }, 80);
-<<<<<<< HEAD
-=======
-  // Hover mượt: delay mở/đóng
-  const handleEnter = (itemId) => {
-    window.clearTimeout(closeTimeoutRef.current);
-    openTimeoutRef.current = window.setTimeout(() => {
-      setActiveDropdown(itemId);
-    }, 80);
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   };
 
   const handleLeave = () => {
@@ -143,17 +82,10 @@ const Header = () => {
     closeTimeoutRef.current = window.setTimeout(() => {
       setActiveDropdown(null);
     }, 140);
-<<<<<<< HEAD
-=======
-  const handleLeave = () => {
-    window.clearTimeout(openTimeoutRef.current);
-    closeTimeoutRef.current = window.setTimeout(() => {
-      setActiveDropdown(null);
-    }, 140);
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
   };
 
   const handleMobileMenuToggle = () => setIsMobileMenuOpen((v) => !v);
+
   const handleLogout = () => {
     logout();
     navigate(ROUTES.HOME);
@@ -168,11 +100,7 @@ const Header = () => {
       <header className="anta-header">
         <div className="header-content">
           <div className="header-left">
-            <button
-              className="menu-toggle"
-              onClick={handleMobileMenuToggle}
-              aria-label="Menu"
-            >
+            <button className="menu-toggle" onClick={handleMobileMenuToggle} aria-label="Menu" type="button">
               <span className={`toggle-bar ${isMobileMenuOpen ? "active" : ""}`}>
                 <span></span>
                 <span></span>
@@ -202,22 +130,10 @@ const Header = () => {
                     onMouseLeave={handleLeave}
                   >
                     <Link to={item.link} className="nav-item-link">
-                      <span
-                        className={`nav-item-text ${
-                          item.highlight ? "text-highlight" : ""
-                        }`}
-                      >
-                        {item.name}
-                      </span>
+                      <span className={`nav-item-text ${item.highlight ? "text-highlight" : ""}`}>{item.name}</span>
 
                       {item.hasDropdown && (
-                        <svg
-                          className="nav-chevron"
-                          width="10"
-                          height="6"
-                          viewBox="0 0 10 6"
-                          fill="none"
-                        >
+                        <svg className="nav-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none">
                           <path
                             d="M1 1L5 5L9 1"
                             stroke="currentColor"
@@ -228,46 +144,6 @@ const Header = () => {
                         </svg>
                       )}
                     </Link>
-<<<<<<< HEAD
-=======
-              {menuData.map((item) => {
-                const isOpen = activeDropdown === item.id && item.hasDropdown;
-
-                return (
-                  <li
-                    key={item.id}
-                    className="navigation-item"
-                    onMouseEnter={() => item.hasDropdown && handleEnter(item.id)}
-                    onMouseLeave={handleLeave}
-                  >
-                    <Link to={item.link} className="nav-item-link">
-                      <span
-                        className={`nav-item-text ${
-                          item.highlight ? "text-highlight" : ""
-                        }`}
-                      >
-                        {item.name}
-                      </span>
-
-                      {item.hasDropdown && (
-                        <svg
-                          className="nav-chevron"
-                          width="10"
-                          height="6"
-                          viewBox="0 0 10 6"
-                          fill="none"
-                        >
-                          <path
-                            d="M1 1L5 5L9 1"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </Link>
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
                     {item.hasDropdown && (
                       <div
@@ -283,21 +159,12 @@ const Header = () => {
 
                               <ul className="column-items">
                                 {section.items.map((subItem, subIndex) => {
-                                  const label =
-                                    typeof subItem === "string"
-                                      ? subItem
-                                      : subItem.name;
-
-                                  const toLink =
-                                    typeof subItem === "string"
-                                      ? item.link
-                                      : subItem.link;
+                                  const label = typeof subItem === "string" ? subItem : subItem.name;
+                                  const toLink = typeof subItem === "string" ? item.link : subItem.link;
 
                                   return (
                                     <li key={subIndex} className="column-item">
-                                      <span onClick={() => handlePushRouter(toLink)}>
-                                        {label}
-                                      </span>
+                                      <span onClick={() => handlePushRouter(toLink)}>{label}</span>
                                     </li>
                                   );
                                 })}
@@ -310,59 +177,11 @@ const Header = () => {
                   </li>
                 );
               })}
-<<<<<<< HEAD
-=======
-                    {item.hasDropdown && (
-                      <div
-                        className={`navigation-dropdown ${isOpen ? "open" : ""}`}
-                        onMouseEnter={() => handleEnter(item.id)}
-                        onMouseLeave={handleLeave}
-                        aria-hidden={!isOpen}
-                      >
-                        <div className="dropdown-container">
-                          {item.dropdown.map((section, index) => (
-                            <div key={index} className="dropdown-column">
-                              <h4 className="column-title">{section.title}</h4>
-
-                              <ul className="column-items">
-                                {section.items.map((subItem, subIndex) => {
-                                  const label =
-                                    typeof subItem === "string"
-                                      ? subItem
-                                      : subItem.name;
-
-                                  const toLink =
-                                    typeof subItem === "string"
-                                      ? item.link
-                                      : subItem.link;
-
-                                  return (
-                                    <li key={subIndex} className="column-item">
-                                      <span onClick={() => handlePushRouter(toLink)}>
-                                        {label}
-                                      </span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
             </ul>
           </nav>
 
           <div className="header-right">
-            <button
-              className="header-action search-action"
-              onClick={handleSearchToggle}
-              aria-label="Tìm kiếm"
-            >
+            <button className="header-action search-action" onClick={handleSearchToggle} aria-label="Tìm kiếm" type="button">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
                   d="M9 17C13.4183 17 17 13.4183 17 9C17 4.58172 13.4183 1 9 1C4.58172 1 1 4.58172 1 9C1 13.4183 4.58172 17 9 17Z"
@@ -387,14 +206,9 @@ const Header = () => {
                 if (!isAuthenticated) navigate(ROUTES.LOGIN);
                 else if (user?.role === "ADMIN") navigate(ROUTES.ADMIN);
                 else navigate("/account");
-<<<<<<< HEAD
-=======
-                if (!isAuthenticated) navigate(ROUTES.LOGIN);
-                else if (user?.role === "ADMIN") navigate(ROUTES.ADMIN);
-                else navigate("/account");
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
               }}
               aria-label={isAuthenticated ? "Tài khoản" : "Đăng nhập"}
+              type="button"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
@@ -414,6 +228,7 @@ const Header = () => {
                 else navigate(ROUTES.LOGIN);
               }}
               aria-label="Yêu thích"
+              type="button"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
@@ -426,11 +241,7 @@ const Header = () => {
               <span className="action-count">0</span>
             </button>
 
-            <button
-              className="header-action cart-action"
-              onClick={handleCartClick}
-              aria-label="Giỏ hàng"
-            >
+            <button className="header-action cart-action" onClick={handleCartClick} aria-label="Giỏ hàng" type="button">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
                   d="M1 1H3.66667L5.73333 12.3933C5.82417 12.8453 6.06973 13.2512 6.42855 13.5422C6.78737 13.8332 7.2362 13.9916 7.7 13.9917H15.4C15.8638 13.9916 16.3126 13.8332 16.6715 13.5422C17.0303 13.2512 17.2758 12.8453 17.3667 12.3933L18.6667 5.66667H4.33333M7.66667 17.6667C7.66667 18.1269 7.29357 18.5 6.83333 18.5C6.3731 18.5 6 18.1269 6 17.6667C6 17.2064 6.3731 16.8333 6.83333 16.8333C7.29357 16.8333 7.66667 17.2064 7.66667 17.6667ZM16.1667 17.6667C16.1667 18.1269 15.7936 18.5 15.3333 18.5C14.8731 18.5 14.5 18.1269 14.5 17.6667C14.5 17.2064 14.8731 16.8333 15.3333 16.8333C15.7936 16.8333 16.1667 17.2064 16.1667 17.6667Z"
@@ -451,7 +262,7 @@ const Header = () => {
           <div className="mobile-menu-panel" onClick={(e) => e.stopPropagation()}>
             <div className="panel-header">
               <h3 className="panel-title">MENU</h3>
-              <button className="panel-close" onClick={handleMobileMenuToggle} aria-label="Đóng">
+              <button className="panel-close" onClick={handleMobileMenuToggle} aria-label="Đóng" type="button">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                   <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
@@ -474,13 +285,13 @@ const Header = () => {
             <div className="panel-footer">
               {isAuthenticated ? (
                 <div className="auth-section">
-                  <p className="auth-greeting">Xin chào, {user.username}</p>
-                  <button className="auth-button" onClick={handleLogout}>
+                  <p className="auth-greeting">Xin chào, {user?.username}</p>
+                  <button className="auth-button" onClick={handleLogout} type="button">
                     Đăng xuất
                   </button>
                 </div>
               ) : (
-                <button className="auth-button" onClick={() => handlePushRouter(ROUTES.LOGIN)}>
+                <button className="auth-button" onClick={() => handlePushRouter(ROUTES.LOGIN)} type="button">
                   Đăng nhập
                 </button>
               )}
@@ -493,4 +304,5 @@ const Header = () => {
     </>
   );
 };
+
 export default Header;

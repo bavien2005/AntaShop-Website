@@ -6,11 +6,6 @@ import { AdminSidebar, ProductManagement, ShippingManagement } from '../componen
 import adminService from '../services/adminService';
 import { useCart } from '../contexts';
 import ProductOverviewChart from '../pages/ProductOverviewChart';
-<<<<<<< HEAD
-import { useCart } from '../contexts';
-
-=======
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 import './AdminPage.css';
 import DashboardStatsTabs from '../components/DashboardStatsTabs';
 

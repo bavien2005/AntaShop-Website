@@ -241,7 +241,6 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
   const handleMouseLeave = () => setIsZoomed(false);
 
   // actions
-<<<<<<< HEAD
   const handleAddToCartClick = async () => {
     // nếu có variants thì bắt buộc chọn size/color nếu tồn tại tập lựa chọn
     if (variants.length) {
@@ -279,46 +278,6 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
 
     alert("Đã thêm sản phẩm vào giỏ hàng!");
   };
-=======
-const handleAddToCartClick = async () => {
-  // nếu có variants thì bắt buộc chọn size/color nếu tồn tại tập lựa chọn
-  if (variants.length) {
-    if (allSizes.length && !selectedSize) return alert("Vui lòng chọn kích thước");
-    if (allColors.length && !selectedColor) return alert("Vui lòng chọn màu sắc");
-  }
-
-  // --- resolve variantId an toàn ---
-  const resolvedVariantId =
-    activeVariant?.id ??
-    activeVariant?._id ??
-    activeVariant?.variantId ??
-    activeVariant?.sku ??
-    null;
-
-  if (variants.length && !resolvedVariantId) {
-    console.warn(
-      "Product has variants but resolvedVariantId is null. Using product id as fallback."
-    );
-  }
-
-  const finalVariantId = resolvedVariantId ?? Number(id);
-
-  await addItem({
-    id: Number(id),
-    name: prod?.name || "Sản phẩm",
-    price: currentPrice,
-    image: prod?.images?.[0] || prod?.thumbnail || placeholder,
-    size: selectedSize || undefined,
-    color: selectedColor || undefined,
-    variantId: finalVariantId !== null ? Number(finalVariantId) : null,
-    sku: activeVariant?.sku || prod?.sku || (variants.length ? variants[0]?.sku : undefined),
-    quantity: Number(quantity), // ✅ truyền quantity trong object, đúng với useCart.addItem
-  });
-
-  alert("Đã thêm sản phẩm vào giỏ hàng!");
-};
-
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
 
   const handleBuyNow = () => {

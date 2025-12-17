@@ -19,12 +19,6 @@ export default function SearchPage() {
     color: [],
     brand: [],
   });
-<<<<<<< HEAD
-=======
-
-  const [sortBy, setSortBy] = useState("popular");
-  const [viewMode, setViewMode] = useState("grid");
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 
   const [sortBy, setSortBy] = useState("popular");
   const [viewMode, setViewMode] = useState("grid");

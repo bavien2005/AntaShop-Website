@@ -1,37 +1,37 @@
 // src/utils/session.js
 export function getSessionId() {
-    let sid = null;
+  let sid = null;
+  try {
+    sid = localStorage.getItem("sessionId");
+  } catch (e) {
+    // ignore localStorage errors in some envs
+  }
+
+  if (!sid) {
+    sid = "sid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 12);
     try {
-        sid = localStorage.getItem("sessionId");
-    } catch (e) {
-        // ignore localStorage errors in some envs
-    }
-    if (!sid) {
-        sid = "sid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 12);
-        try { localStorage.setItem("sessionId", sid); } catch (e) { }
-    }
-    return sid;
+      localStorage.setItem("sessionId", sid);
+    } catch (e) {}
+  }
+
+  return sid;
 }
 
 export function createNewSessionId() {
-    const sid = "sid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 12);
-    try {
-        localStorage.setItem("sessionId", sid);
-    } catch (e) {
-        console.warn("createNewSessionId: localStorage set failed", e);
-    }
-    // notify other parts of app (useful for useCart listener)
-    try {
-        window.dispatchEvent(new CustomEvent("session:changed", { detail: { sessionId: sid } }));
-    } catch (e) { /* ignore */ }
-<<<<<<< HEAD
-    return sid;
+  const sid = "sid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 12);
+
+  try {
+    localStorage.setItem("sessionId", sid);
+  } catch (e) {
+    console.warn("createNewSessionId: localStorage set failed", e);
+  }
+
+  // notify other parts of app (useful for useCart listener)
+  try {
+    window.dispatchEvent(new CustomEvent("session:changed", { detail: { sessionId: sid } }));
+  } catch (e) {
+    /* ignore */
+  }
+
+  return sid;
 }
-=======
-    // notify other parts of app (useful for useCart listener)
-    try {
-        window.dispatchEvent(new CustomEvent("session:changed", { detail: { sessionId: sid } }));
-    } catch (e) { /* ignore */ }
-    return sid;
-}
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71

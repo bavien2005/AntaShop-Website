@@ -1203,11 +1203,8 @@ export default function CheckoutPage() {
                             {(displaySize || displayColor) ? (
                               <p className="item-variants">{displaySize && `Size: ${displaySize}`}{displaySize && displayColor && ' | '}{displayColor && `Màu: ${displayColor}`}</p>
                             ) : (<p className="item-variants muted">Không có chọn lựa biến thể</p>)}
-<<<<<<< HEAD
                             <p className="item-price">{(item.unitPrice || 0).toLocaleString()}₫ | x{item.quantity}</p>
-=======
                             <p className="item-price">{(item.unitPrice || 0).toLocaleString()}₫</p>
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
                           </div>
                         </div>
                       );

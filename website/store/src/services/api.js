@@ -31,12 +31,6 @@ export const notificationService = {
     return res.data; // {success, message, requestId}
   }
 };
-<<<<<<< HEAD
-
-=======
-// orderService: call order-service endpoints
-// orderService: call order-service endpoints
->>>>>>> f3ba2cd42baceb8da2cf46af8927b58543b3fe71
 export const orderService = {
   createOrder: async (payload) => {
     try {
