@@ -513,7 +513,16 @@ export const adminProductService = {
       ? { success: true, data: normalizeFromBackend(p) }
       : { success: false, error: "Không tìm thấy sản phẩm" };
   },
-
+  async getSoldQtyByProduct() {
+    try {
+      // Endpoint BE bạn cần có:
+      // GET /api/orders/revenue/products/sold-qty
+      const res = await productApi.get(`/api/orders/revenue/products/sold-qty`);
+      return { success: true, data: res.data };
+    } catch (err) {
+      return { success: false, error: err?.response?.data || err.message };
+    }
+  },
   async syncProductImages(productId) {
     if (USE_REAL_PRODUCT_API) {
       try {
@@ -548,13 +557,13 @@ export const adminProductService = {
         null,
       variants: Array.isArray(productData.variants)
         ? productData.variants.map((v) => ({
-            sku: v.sku,
-            price: v.price ?? 0,
-            stock: v.quantity ?? v.stock ?? 0,
-            size: v.size ?? null,
-            color: v.color ?? null,
-            attributes: v.attributes ?? null,
-          }))
+          sku: v.sku,
+          price: v.price ?? 0,
+          stock: v.quantity ?? v.stock ?? 0,
+          size: v.size ?? null,
+          color: v.color ?? null,
+          attributes: v.attributes ?? null,
+        }))
         : undefined,
       totalStock: productData.totalStock ?? productData.quantity ?? undefined,
       // NOTE: images/imageIds (nếu có) phải được flow upload cloud xử lý ở nơi khác

@@ -93,7 +93,9 @@ export default function ProductDetailPage() {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const imageRef = useRef(null);
-
+  // lightbox (view full-screen + slider)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   // options
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
@@ -162,6 +164,50 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
     return () => (mounted = false);
   }, [id]);
 
+  // ✅ Reset lựa chọn khi chuyển sang product khác (id đổi)
+  useEffect(() => {
+    // reset option state
+    setSelectedSize("");
+    setSelectedColor("");
+    setQuantity(1);
+
+    // reset gallery/zoom/lightbox state
+    setSelectedImage(0);
+    setIsZoomed(false);
+    setZoomPosition({ x: 0, y: 0 });
+    setIsLightboxOpen(false);
+    setLightboxIndex(0);
+
+    // reset tab nếu bạn muốn (optional)
+    setActiveTab("description");
+  }, [id]);
+
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+
+    // lock scroll
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "ArrowRight") goNext();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isLightboxOpen]); // eslint-disable-line
+
+  // Khi đang mở lightbox và đổi ảnh -> đồng bộ về selectedImage (để đóng ra vẫn đúng ảnh)
+  useEffect(() => {
+    if (isLightboxOpen) setSelectedImage(lightboxIndex);
+  }, [lightboxIndex, isLightboxOpen]); // eslint-disable-line
+
   // ---- helpers from prod ----
   const variants = useMemo(() => (Array.isArray(prod?.variants) ? prod.variants : []), [prod]);
 
@@ -182,7 +228,25 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
     });
     return Array.from(set);
   }, [variants]);
+  const openLightbox = (idx) => {
+    const safeIdx = Number.isFinite(idx) ? idx : 0;
+    setLightboxIndex(safeIdx);
+    setIsLightboxOpen(true);
+  };
 
+  const closeLightbox = () => setIsLightboxOpen(false);
+
+  const goPrev = () => {
+    const len = (prod?.images?.length || 0);
+    if (!len) return;
+    setLightboxIndex((i) => (i - 1 + len) % len);
+  };
+
+  const goNext = () => {
+    const len = (prod?.images?.length || 0);
+    if (!len) return;
+    setLightboxIndex((i) => (i + 1) % len);
+  };
   // chọn mặc định nếu có
   useEffect(() => {
     if (allColors.length && !selectedColor) setSelectedColor(allColors[0]);
@@ -419,7 +483,10 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
                     <button
                       key={idx}
                       className={`thumb-item ${selectedImage === idx ? "active" : ""}`}
-                      onClick={() => setSelectedImage(idx)}
+                      onClick={() => {
+                        setSelectedImage(idx);
+                        openLightbox(idx);
+                      }}
                     >
                       <img src={img || placeholder} alt={`${prod.name} ${idx + 1}`} />
                     </button>
@@ -693,8 +760,8 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
                 <div className="tab-panel">
                   <h3 className="panel-heading">Giới thiệu sản phẩm</h3>
                   <p className="panel-text">
-                    { DEFAULT_ANTA_DESCRIPTION}
-                    
+                    {DEFAULT_ANTA_DESCRIPTION}
+
                   </p>
                   <p fontSize="16px" lineHeight="1.6" className="panel-text">
                     Mô Tả Sản Phẩm: {prod.description || "—"}
@@ -853,6 +920,32 @@ Nếu cần tư vấn size hoặc mix-match theo nhu cầu, bạn cứ nhắn AN
           </div>
         </div>
       </div>
+      {isLightboxOpen && (
+        <div className="lb-overlay" onClick={closeLightbox} role="dialog" aria-modal="true">
+          <div className="lb-content" onClick={(e) => e.stopPropagation()}>
+            <button className="lb-close" onClick={closeLightbox} aria-label="Đóng">×</button>
+
+            <div className="lb-counter">
+              {lightboxIndex + 1}/{prod.images.length}
+            </div>
+
+            <button className="lb-nav lb-prev" onClick={goPrev} aria-label="Ảnh trước">
+              ‹
+            </button>
+
+            <img
+              className="lb-image"
+              src={prod.images[lightboxIndex] || placeholder}
+              alt={`${prod.name} ${lightboxIndex + 1}`}
+            />
+
+            <button className="lb-nav lb-next" onClick={goNext} aria-label="Ảnh sau">
+              ›
+            </button>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }

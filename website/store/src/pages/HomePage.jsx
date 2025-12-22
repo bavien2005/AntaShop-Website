@@ -118,14 +118,14 @@ export default function HomePage() {
     const mapped = (Array.isArray(allProducts) ? allProducts : [])
       .map(mapToGridItem)
       .filter(x => x?.id != null);
-    return pickRandom(mapped, 4);
+    return pickRandom(mapped, 6);
   }, [allProducts]);
 
   const newArrivals = useMemo(() => {
     const mapped = (Array.isArray(allProducts) ? allProducts : [])
       .map(mapToGridItem)
       .filter(x => x?.id != null);
-    return pickRandom(mapped, 4);
+    return pickRandom(mapped, 6);
   }, [allProducts]);
   const sportCategories = [
     {

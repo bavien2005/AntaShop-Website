@@ -28,7 +28,7 @@ export default function ProductStats({ topN = 15, maxStockAxis = 1000 }) {
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState(null);
   const [error, setError] = useState(null);
-  const [featured, setFeatured] = useState(null);
+  const [featuredList, setFeaturedList] = useState([]);
   const [totalStockSum, setTotalStockSum] = useState(0);
 
   useEffect(() => {
@@ -41,18 +41,27 @@ export default function ProductStats({ topN = 15, maxStockAxis = 1000 }) {
         const res = await adminProductService.getProducts({ page: 1, size: 500 });
         if (!res.success) throw new Error(res.error || 'Không lấy được danh sách sản phẩm');
         const products = res.data || [];
-
+        const soldRes = await adminProductService.getSoldQtyByProduct();
+        const soldRows = soldRes.success ? (soldRes.data || []) : [];
+        const soldMap = new Map(
+          soldRows
+            .filter(r => r && r.productId != null)
+            .map(r => [Number(r.productId), Number(r.soldQty || 0)])
+        );
         // Normalize items: ensure numbers
         const items = products.map(p => {
           const price = Number(p.price || 0);
-          const sales = Number(p.sales || 0);
           const totalStock = Number(p.totalStock ?? p.quantity ?? 0);
           const thumbnail = (p.thumbnail && String(p.thumbnail)) || (Array.isArray(p.images) && p.images[0]) || null;
+
+          const idNum = Number(p.id);
+          const soldQty = soldMap.get(idNum) || 0;
+
           return {
-            id: p.id,
+            id: idNum,
             name: p.name || `#${p.id}`,
             price,
-            sales,
+            soldQty,        // ✅ NEW
             totalStock,
             thumbnail
           };
@@ -61,15 +70,14 @@ export default function ProductStats({ topN = 15, maxStockAxis = 1000 }) {
         // choose top by totalStock (or by sales if prefer)
         // We'll pick top by (sales or totalStock) combination to surface interesting products.
         items.sort((a, b) => {
-          // prioritize sales first, then stock
-          return (b.sales - a.sales) || (b.totalStock - a.totalStock) || b.price - a.price;
+          return (b.soldQty - a.soldQty) || (b.totalStock - a.totalStock) || b.price - a.price;
         });
 
         const top = items.slice(0, topN);
 
         const labels = top.map(t => (t.name.length > 50 ? t.name.slice(0, 47) + '...' : t.name));
         const stockValues = top.map(t => t.totalStock);
-        const soldValues = top.map(t => t.sales);
+        const soldValues = top.map(t => t.soldQty);
 
         // compute total stock across all products (use items, not only top)
         const totalStockAll = items.reduce((s, it) => s + (Number(it.totalStock) || 0), 0);
@@ -142,8 +150,11 @@ export default function ProductStats({ topN = 15, maxStockAxis = 1000 }) {
         };
 
         if (mounted) {
+          const maxSold = items.length ? Math.max(...items.map(x => x.soldQty)) : 0;
+          const featured = maxSold > 0 ? items.filter(x => x.soldQty === maxSold) : [];
+
           setChartData({ data, options });
-          setFeatured(top.length ? top[0] : null);
+          setFeaturedList(featured);
           setTotalStockSum(totalStockAll);
         }
       } catch (err) {
@@ -186,34 +197,38 @@ export default function ProductStats({ topN = 15, maxStockAxis = 1000 }) {
           </div>
         </div>
 
-        {featured && (
-          <div className="featured-product-section">
-            <h3 className="section-title">Sản phẩm nổi bật</h3>
-            <div className="featured-product-card">
-              <div className="product-image">
-                <img
-                  src={featured.thumbnail || PLACEHOLDER}
-                  alt={featured.name}
-                  onError={(e) => { e.target.src = PLACEHOLDER; }}
-                />
-              </div>
-              <div className="product-info">
-                <h4 className="product-name">{featured.name}</h4>
-                <div className="product-price">{featured.price ? formatCurrency(featured.price) : '-'}</div>
-                <div className="product-stats">
-                  <div className="stat-item">
-                    <span className="stat-label">Đã bán:</span>
-                    <span className="stat-value sold">{featured.sales}</span>
+        <h4 style={{ marginTop: 0 }}>Sản phẩm nổi bật (bán nhiều nhất)</h4>
+
+        {featuredList.length ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {featuredList.map(fp => (
+              <div key={fp.id} style={{ display: 'flex', gap: 12 }}>
+                <div style={{ width: 72, height: 72, borderRadius: 8, overflow: 'hidden', background: '#f3f4f6', flexShrink: 0 }}>
+                  <img
+                    src={fp.thumbnail || PLACEHOLDER}
+                    alt={fp.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.target.src = PLACEHOLDER; }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#111' }}>{fp.name}</div>
+                  <div style={{ color: '#0EA5A4', fontWeight: 700, marginTop: 8 }}>
+                    {fp.price ? formatCurrency(fp.price) : '-'}
                   </div>
-                  <div className="stat-item">
-                    <span className="stat-label">Tồn kho:</span>
-                    <span className="stat-value stock">{featured.totalStock}</span>
+                  <div style={{ marginTop: 8, color: '#666', fontSize: 13 }}>
+                    Đã bán: <strong style={{ color: '#111' }}>{fp.soldQty}</strong>
+                    <br />
+                    Tồn kho: <strong style={{ color: '#111' }}>{fp.totalStock}</strong>
                   </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
+        ) : (
+          <div style={{ color: '#777' }}>Chưa có dữ liệu “đã bán”.</div>
         )}
+
       </div>
     </div>
   );

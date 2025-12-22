@@ -8,6 +8,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -25,6 +26,7 @@
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -89,6 +91,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -122,6 +125,7 @@
     opacity: 0;
     transform: scale(0.8);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -146,6 +150,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -200,7 +205,7 @@
   margin: 0 auto 56px;
   font-size: 17px;
   line-height: 1.8;
-  color: var(--color-text);
+  color: black;
   animation: fadeInUp 0.8s ease-out 0.6s both;
 }
 
@@ -624,7 +629,7 @@
   .article-headline {
     font-size: 36px;
   }
-  
+
   .article-body h2 {
     font-size: 28px;
   }
@@ -646,28 +651,28 @@
   .article {
     padding: 32px;
   }
-  
+
   .article-headline {
     font-size: 30px;
   }
-  
+
   .article-info {
     gap: 20px;
   }
-  
+
   .info-item {
     font-size: 13px;
   }
-  
+
   .article-body {
     font-size: 16px;
   }
-  
+
   .article-body h2 {
     font-size: 26px;
     margin: 36px 0 16px;
   }
-  
+
   .article-body h3 {
     font-size: 20px;
   }
@@ -676,7 +681,7 @@
     grid-template-columns: 1fr;
     gap: 28px;
   }
-  
+
   .comments-area {
     padding: 32px;
   }
@@ -692,16 +697,16 @@
   .detail-content {
     padding: 40px 0;
   }
-  
+
   .article {
     padding: 24px;
     border-radius: 16px;
   }
-  
+
   .article-headline {
     font-size: 26px;
   }
-  
+
   .article-category {
     padding: 8px 18px;
     font-size: 11px;
@@ -738,7 +743,7 @@
     font-size: 24px;
     margin-bottom: 32px;
   }
-  
+
   .comments-area {
     padding: 24px;
     border-radius: 16px;
@@ -748,7 +753,7 @@
     padding: 20px;
     gap: 14px;
   }
-  
+
   .comment-avatar {
     width: 44px;
     height: 44px;
@@ -772,4 +777,192 @@
     padding: 12px 32px;
     font-size: 14px;
   }
+}
+
+/* ========== Gallery thumbs: 2 cột, nhiều hàng ========== */
+.gallery-thumbs {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 2 cột */
+  gap: 12px;
+  /* khoảng cách giữa ô */
+}
+
+/* mỗi thumbnail to, vuông vức, bấm được */
+.thumb-item {
+  width: 100%;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  cursor: pointer;
+
+  /* làm ô thumb “to ra” và đều nhau */
+  aspect-ratio: 1 / 1;
+  /* vuông; nếu thích chữ nhật giống ảnh 2 thì đổi 4/3 */
+}
+
+/* ảnh bên trong thumb */
+.thumb-item img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  /* hoặc contain nếu bạn muốn không bị crop */
+}
+
+/* trạng thái đang chọn */
+.thumb-item.active {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+}
+
+/* ========== Lightbox / Fullscreen slider ========== */
+.lb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.86);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.lb-content {
+  position: relative;
+  width: min(1500px, 98vw);
+  /* tăng từ 1100 -> 1400 */
+  height: auto;
+  /* bỏ height min(90vh, 900px) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.lb-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 34px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.lb-prev {
+  left: 8px;
+}
+
+.lb-next {
+  right: 8px;
+}
+
+.lb-nav:hover {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.lb-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 26px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.lb-counter {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 480px) {
+  .lb-nav {
+    width: 44px;
+    height: 44px;
+    font-size: 28px;
+  }
+}
+
+/* reset để không bị CSS global button đè */
+.lb-nav,
+.lb-close {
+  padding: 0;
+  /* quan trọng */
+  min-width: 0;
+  min-height: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+/* nút điều hướng */
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  cursor: pointer;
+
+  display: flex;
+  /* đổi từ grid -> flex để “ăn chắc” canh giữa */
+  align-items: center;
+  justify-content: center;
+
+  font-size: 34px;
+  line-height: 1;
+}
+
+/* nút đóng */
+.lb-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 26px;
+  line-height: 1;
 }
