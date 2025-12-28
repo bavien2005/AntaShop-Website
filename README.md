@@ -181,17 +181,6 @@ Helper functions (formatting, validation...).
 • No inline CSS – always use CSS modules  
 • ESLint + Prettier enabled  
 
----
-
-
-# 👥 Team
-
-### 👨‍💻 Leader  
-• **Nguyễn Bá Viên**
-
-### 👥 Members  
-• **Phạm Quang Thuần**  
-• **Nguyễn Văn Đức Trung**
 
 ---
 Frontend Developer – React  
